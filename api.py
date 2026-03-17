@@ -421,15 +421,21 @@ MOCK_REPORTS = [
     {
         "id": "1",
         "title": "AI Intelligence Report - Week of Mar 10, 2026",
-        "generatedDate": "2026-03-16T14:22:00Z",
-        "articleCount": 12,
-        "fundingCount": 3,
-        "summary": [
+        "generated_date": "2026-03-16T14:22:00Z",
+        "article_count": 12,
+        "funding_count": 3,
+        "summary": "This week marked significant advances in enterprise AI adoption, with major corporations deploying autonomous agents across supply chains. Patent activity surged 45% year-over-year for AI-hardware integration, while regulatory frameworks solidified with EU AI Act enforcement timelines confirmed. Three major funding rounds totaling $1.2B were announced in autonomous systems, indicating strong market confidence.",
+        "key_points": [
             "Agentic AI systems gaining adoption in enterprise supply chain management",
             "Patent filings for LiDAR + Gen AI synthesis increased 45% YoY",
             "EU AI Act enforcement timeline confirmed for Q3 2026",
             "Three major funding rounds announced in autonomous systems space",
             "Regulatory compliance tools emerging as fastest-growing market segment"
+        ],
+        "recommendations": [
+            "Begin AI readiness assessment within next 30 days",
+            "Establish data governance framework for compliance",
+            "Evaluate autonomous agent solutions for supply chain optimization"
         ],
         "articles": [
             {
@@ -441,33 +447,114 @@ MOCK_REPORTS = [
                 "signal": "strong",
                 "relevance": 9,
                 "industry": "Automotive",
-                "subIndustry": "Supply Chain",
-                "actors": [
-                    {"name": "Toyota", "type": "Corporation", "role": "Deployer"},
-                    {"name": "OpenAI", "type": "Tech Provider", "role": "AI Partner"}
-                ],
-                "points": [
-                    "23% cost reduction in procurement",
-                    "Decision latency reduced from 4 hours to 8 minutes",
-                    "340+ supplier network automated"
-                ],
                 "summary": "Toyota deployed autonomous AI agent network managing 340+ suppliers globally, achieving 23% cost reduction and cutting decision latency from 4 hours to 8 minutes.",
-                "url": "https://techcrunch.com/example"
+                "url": "https://techcrunch.com/2026/03/15/toyota-ai-supply-chain/"
+            },
+            {
+                "id": 2,
+                "number": "2",
+                "title": "EU AI Act enforcement begins Q3 as tech giants prepare compliance",
+                "source": "Reuters",
+                "date": "2026-03-14",
+                "signal": "strong",
+                "relevance": 8,
+                "industry": "Regulatory",
+                "summary": "European regulatory bodies confirm Q3 2026 enforcement date for the comprehensive AI Act, requiring all vendors to implement risk classification and audit frameworks.",
+                "url": "https://reuters.com/2026/03/14/eu-ai-act-enforcement/"
+            },
+            {
+                "id": 3,
+                "number": "3",
+                "title": "LiDAR-Gen AI patent filings surge 45% in Q1 2026",
+                "source": "WIPO Patent Review",
+                "date": "2026-03-10",
+                "signal": "strong",
+                "relevance": 7,
+                "industry": "Autonomous Systems",
+                "summary": "World Intellectual Property Organization reports unprecedented surge in combined LiDAR sensor and generative AI patent applications, signaling major innovation in autonomous vehicle perception.",
+                "url": "https://wipo.org/2026/03/10/patent-trends/"
             }
         ]
     },
     {
         "id": "2",
         "title": "Strategic Intelligence Brief - Fintech & Payments",
-        "generatedDate": "2026-03-15T09:45:00Z",
-        "articleCount": 8,
-        "fundingCount": 2,
-        "summary": [
+        "generated_date": "2026-03-15T09:45:00Z",
+        "article_count": 8,
+        "funding_count": 2,
+        "summary": "The fintech sector experienced rapid AI integration with fraud detection systems reducing transaction failures by 40%. European sovereign AI initiatives are reshaping the competitive landscape, while payment processing infrastructure continues to advance toward sub-millisecond latency goals. Market consolidation continues as major players acquire specialized AI providers.",
+        "key_points": [
             "Real-time fraud detection AI reducing transaction failures by 40%",
             "European LLM regulation driving sovereign AI adoption",
-            "Payment processing latency down to sub-millisecond levels"
+            "Payment processing latency down to sub-millisecond levels",
+            "Cross-border payment settlement accelerated with AI routing",
+            "Compliance cost reduction of 35% through automated monitoring"
         ],
-        "articles": []
+        "recommendations": [
+            "Implement advanced fraud detection systems immediately",
+            "Prepare for sovereign AI infrastructure requirements in EU markets",
+            "Invest in latency optimization for payment infrastructure"
+        ],
+        "articles": [
+            {
+                "id": 4,
+                "number": "1",
+                "title": "Stripe launches AI fraud detection system reducing false positives by 60%",
+                "source": "VentureBeat",
+                "date": "2026-03-13",
+                "signal": "strong",
+                "relevance": 9,
+                "industry": "Fintech",
+                "summary": "Stripe announced breakthrough AI model for real-time fraud detection, reducing false positive rates to near-zero while catching 99.8% of fraudulent transactions.",
+                "url": "https://venturebeat.com/2026/03/13/stripe-ai-fraud/"
+            },
+            {
+                "id": 5,
+                "number": "2",
+                "title": "European sovereign AI initiative launched - €2B investment",
+                "source": "EU Commission Press",
+                "date": "2026-03-12",
+                "signal": "strong",
+                "relevance": 8,
+                "industry": "Policy",
+                "summary": "European Commission announces €2 billion investment in indigenous AI development to reduce technology dependence and support fintech compliance with new regulatory frameworks.",
+                "url": "https://ec.europa.eu/2026/03/12/sovereign-ai-initiative/"
+            }
+        ]
+    },
+    {
+        "id": "3",
+        "title": "Market Deep Dive - Enterprise AI Adoption 2026",
+        "generated_date": "2026-03-14T16:30:00Z",
+        "article_count": 15,
+        "funding_count": 5,
+        "summary": "Enterprise AI adoption accelerated dramatically in Q1 2026, with Fortune 500 companies allocating average 18% increase in AI budgets. Autonomous agents proved most effective in operational tasks, while concerns about regulation and data privacy remain top challenges. Market consolidation continues with mega-deals reshaping the competitive landscape.",
+        "key_points": [
+            "Fortune 500 average AI budget increase: 18% QoQ",
+            "Autonomous agents approved for 45% of operational workflows",
+            "Data privacy concerns cited by 73% of enterprises",
+            "Hybrid AI-human teams showing 32% productivity gains",
+            "ROI realization timeline shortened to 8-12 months on average"
+        ],
+        "recommendations": [
+            "Establish clear AI governance and risk management frameworks",
+            "Invest in hybrid AI-human team training programs",
+            "Plan for 24-month AI transformation roadmap"
+        ],
+        "articles": [
+            {
+                "id": 6,
+                "number": "1",
+                "title": "Fortune 500 AI spending surges: average 18% increase confirmed",
+                "source": "McKinsey & Company",
+                "date": "2026-03-11",
+                "signal": "strong",
+                "relevance": 9,
+                "industry": "Enterprise",
+                "summary": "McKinsey's latest enterprise AI survey confirms sustained momentum in AI investments with Fortune 500 companies committing record budgets to autonomous systems and decision support platforms.",
+                "url": "https://mckinsey.com/2026/03/11/fortune-500-ai-spending/"
+            }
+        ]
     }
 ]
 

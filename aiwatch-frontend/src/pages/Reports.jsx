@@ -1,5 +1,110 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { getReports, getReport } from "../services/api";
+
+// Print styles
+const printStyles = `
+  @media print {
+    body {
+      margin: 0;
+      padding: 0;
+      background: white;
+    }
+    
+    .report-print-container {
+      page-break-after: always;
+      padding: 40px;
+      color: #111111;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    }
+    
+    .report-header {
+      border-bottom: 3px solid #6B2C94;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .report-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #111111;
+      margin: 0 0 10px 0;
+    }
+    
+    .report-meta {
+      font-size: 12px;
+      color: #666666;
+      margin-bottom: 15px;
+    }
+    
+    .report-section {
+      margin-bottom: 30px;
+    }
+    
+    .report-section-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111111;
+      margin-bottom: 15px;
+      border-left: 4px solid #6B2C94;
+      padding-left: 12px;
+    }
+    
+    .article-item {
+      page-break-inside: avoid;
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #d0d0d0;
+      border-radius: 4px;
+      background: #fafafa;
+    }
+    
+    .article-number {
+      display: inline-block;
+      background: #6B2C94;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 3px;
+      font-weight: 700;
+      margin-right: 10px;
+      font-size: 11px;
+    }
+    
+    .article-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111111;
+      margin: 10px 0;
+    }
+    
+    .article-meta {
+      font-size: 11px;
+      color: #666666;
+      margin-bottom: 10px;
+    }
+    
+    .article-url {
+      word-break: break-all;
+      font-size: 10px;
+      color: #6B2C94;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    
+    ul {
+      margin: 0;
+      padding-left: 25px;
+    }
+    
+    li {
+      margin-bottom: 8px;
+      color: #444444;
+    }
+    
+    button, .report-controls {
+      display: none;
+    }
+  }
+`;
 
 const B = {
   purple: "#6B2C94",
@@ -249,19 +354,122 @@ function ReportDetail({ reportId, onClose }) {
           </div>
         )}
 
-        {/* Recommendations */}
-        {report.recommendations && report.recommendations.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <h2 style={{ fontSize: 14, fontWeight: 700, color: B.gray900, marginBottom: 12 }}>Recommendations</h2>
-            <ul style={{ fontSize: 12, color: B.gray600, lineHeight: 1.8, paddingLeft: 20 }}>
-              {report.recommendations.map((rec, idx) => (
-                <li key={idx} style={{ marginBottom: 6 }}>
-                  {rec}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                <div style={{ flex: 1 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 700, color: B.gray900, marginBottom: 12 }}>Articles & Sources</h2>
+                  {report.articles && report.articles.length > 0 ? (
+                    <div style={{ display: "grid", gap: 12 }}>
+                      {report.articles.map((article, idx) => (
+                        <div key={idx} style={{
+                          background: B.gray50,
+                          border: `1px solid ${B.gray100}`,
+                          borderRadius: 4,
+                          padding: "12px 16px",
+                          transition: "all 0.2s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = B.purple;
+                          e.currentTarget.style.boxShadow = `0 2px 8px rgba(107, 44, 148, 0.15)`;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = B.gray100;
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                        >
+                          <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+                            <span style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: B.purple,
+                              background: B.purplePale,
+                              padding: "4px 10px",
+                              borderRadius: 3,
+                              whiteSpace: "nowrap",
+                            }}>#{article.number || idx + 1}</span>
+                            <span style={{
+                              fontSize: 10,
+                              background: article.signal === "strong" ? B.greenLight : "#fef3e2",
+                              color: article.signal === "strong" ? B.green : B.amber,
+                              padding: "4px 8px",
+                              borderRadius: 3,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap",
+                            }}>
+                              {article.signal?.toUpperCase() || "SIGNAL"}
+                            </span>
+                          </div>
+                          <h4 style={{ fontSize: 12, fontWeight: 700, color: B.gray900, margin: "8px 0", lineHeight: 1.4 }}>
+                            {article.title}
+                          </h4>
+                          <div style={{ display: "flex", gap: 12, marginBottom: 10, fontSize: 11, color: B.gray600 }}>
+                            <span>📰 {article.source}</span>
+                            <span>📅 {article.date}</span>
+                            <span>🎯 {article.relevance || article.score?.relevance || 0}/10 relevance</span>
+                          </div>
+                          {article.summary && (
+                            <p style={{ fontSize: 11, color: B.gray600, margin: "8px 0", lineHeight: 1.5 }}>
+                              {article.summary}
+                            </p>
+                          )}
+                          {article.url && (
+                            <a
+                              href={article.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                fontSize: 11,
+                                color: B.purple,
+                                fontWeight: 600,
+                                textDecoration: "none",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                cursor: "pointer",
+                              }}
+                              onMouseEnter={(e) => e.target.style.textDecoration = "underline"}
+                              onMouseLeave={(e) => e.target.style.textDecoration = "none"}
+                            >
+                              🔗 Read Full Article →
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: 12, color: B.gray500 }}>No articles in this report</p>
+                  )}
+                </div>
+
+                {/* Export/Print buttons */}
+                <div style={{ display: "flex", gap: 8, marginLeft: 12 }}>
+                  <button
+                    onClick={() => window.print()}
+                    style={{
+                      padding: "8px 14px",
+                      background: B.gray50,
+                      border: `1px solid ${B.gray200}`,
+                      color: B.gray700,
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = B.purple;
+                      e.target.style.color = B.white;
+                      e.target.style.borderColor = B.purple;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = B.gray50;
+                      e.target.style.color = B.gray700;
+                      e.target.style.borderColor = B.gray200;
+                    }}
+                  >
+                    🖨️ Print / PDF
+                  </button>
+                </div>
+              </div>
 
         {/* Metadata */}
         <div style={{ borderTop: `1px solid ${B.gray100}`, paddingTop: 16, marginTop: 24 }}>
@@ -285,20 +493,23 @@ export default function Reports() {
   const [selectedReportId, setSelectedReportId] = useState(null);
 
   return (
-    <div style={{ background: B.white, padding: "24px 28px", minHeight: "100vh" }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: B.gray900, marginBottom: 8 }}>Reports</h1>
-        <p style={{ fontSize: 12, color: B.gray500 }}>Analysis and insights from your data</p>
-      </div>
+    <>
+      <style>{printStyles}</style>
+      <div style={{ background: B.white, padding: "24px 28px", minHeight: "100vh" }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: B.gray900, marginBottom: 8 }}>Reports</h1>
+          <p style={{ fontSize: 12, color: B.gray500 }}>Analysis and insights from your data</p>
+        </div>
 
-      {selectedReportId ? (
-        <ReportDetail
-          reportId={selectedReportId}
-          onClose={() => setSelectedReportId(null)}
-        />
-      ) : (
-        <ReportsList onSelectReport={setSelectedReportId} />
-      )}
-    </div>
+        {selectedReportId ? (
+          <ReportDetail
+            reportId={selectedReportId}
+            onClose={() => setSelectedReportId(null)}
+          />
+        ) : (
+          <ReportsList onSelectReport={setSelectedReportId} />
+        )}
+      </div>
+    </>
   );
 }

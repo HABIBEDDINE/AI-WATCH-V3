@@ -24,20 +24,13 @@ export default function Trends() {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [persona, setPersona] = useState("cto");
-
-  const PERSONAS = [
-    { id: "cto", label: "CTO" },
-    { id: "innovation", label: "Innovation Manager" },
-    { id: "strategy", label: "Strategy Director" },
-  ];
 
   // Fetch trends data
-  const fetchTrends = async (selectedPersona) => {
+  const fetchTrends = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getTrends(selectedPersona, 10);
+      const response = await getTrends("cto", 10);
       setTrends(response);
     } catch (err) {
       setError(err.message);
@@ -47,10 +40,10 @@ export default function Trends() {
     }
   };
 
-  // Fetch on mount and when persona changes
+  // Fetch on mount
   useEffect(() => {
-    fetchTrends(persona);
-  }, [persona]);
+    fetchTrends();
+  }, []);
 
   // Prepare chart data
   const chartData = trends && trends.series ? trends.series.map((value, index) => ({
@@ -63,30 +56,7 @@ export default function Trends() {
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 24, fontWeight: 800, color: B.gray900, marginBottom: 4 }}>Trends</h2>
-        <p style={{ fontSize: 12, color: B.gray500 }}>Emerging patterns and trajectories across key topics (Last 10 Trends)</p>
-      </div>
-
-      {/* Persona Selector */}
-      <div style={{ marginBottom: 24, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {PERSONAS.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setPersona(p.id)}
-            style={{
-              padding: "8px 14px",
-              border: persona === p.id ? `2px solid ${B.purple}` : `1px solid ${B.gray200}`,
-              background: persona === p.id ? B.purple : B.gray50,
-              color: persona === p.id ? B.white : B.gray600,
-              fontSize: 11,
-              fontWeight: persona === p.id ? 700 : 500,
-              cursor: "pointer",
-              borderRadius: 4,
-              transition: "all 0.2s",
-            }}
-          >
-            {p.label}
-          </button>
-        ))}
+        <p style={{ fontSize: 12, color: B.gray500 }}>Emerging patterns and trajectories across key topics (Last 7 days)</p>
       </div>
 
       {/* Error Message */}

@@ -132,6 +132,9 @@ export default function Explore() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedArticles, setSelectedArticles] = useState(new Set());
+  const [reportFormat, setReportFormat] = useState("md");
 
   // Debounce timer
   const [searchTimeout, setSearchTimeout] = useState(null);
@@ -199,6 +202,64 @@ export default function Explore() {
     }
   };
 
+  // Toggle article selection
+  const toggleArticleSelection = (articleId) => {
+    const newSet = new Set(selectedArticles);
+    if (newSet.has(articleId)) {
+      newSet.delete(articleId);
+    } else {
+      newSet.add(articleId);
+    }
+    setSelectedArticles(newSet);
+  };
+
+  // Toggle all articles
+  const toggleAllArticles = () => {
+    if (selectedArticles.size === articles.length) {
+      setSelectedArticles(new Set());
+    } else {
+      setSelectedArticles(new Set(articles.map(a => a.id)));
+    }
+  };
+
+  // Generate report
+  const handleGenerateReport = () => {
+    if (selectedArticles.size === 0) {
+      setError("Please select at least one article");
+      return;
+    }
+
+    const selected = articles.filter(a => selectedArticles.has(a.id));
+
+    // Create markdown or text format
+    let content = `# AI Watch Report\n\nGenerated: ${new Date().toLocaleString()}\n\n`;
+    
+    selected.forEach((article, idx) => {
+      content += `## ${idx + 1}. ${article.title}\n\n`;
+      content += `**Source:** ${article.source}\n`;
+      content += `**Signal:** ${article.signal_strength}\n`;
+      content += `**Relevance:** ${article.relevance}/10\n`;
+      content += `**Published:** ${new Date(article.published_at).toLocaleDateString()}\n\n`;
+      content += `${article.summary || "Summary not available"}\n\n`;
+      content += `---\n\n`;
+    });
+
+    // Create download
+    const filename = `ai-watch-report-${new Date().toISOString().split('T')[0]}.${reportFormat}`;
+    const element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+
+    // Reset
+    setShowReportModal(false);
+    setSelectedArticles(new Set());
+    setReportFormat("md");
+  };
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   return (
@@ -229,6 +290,23 @@ export default function Explore() {
               opacity: loading ? 0.6 : 1,
             }}>
             {loading ? "Loading..." : "Generate New Data →"}
+          </button>
+
+          <button
+            onClick={() => setShowReportModal(true)}
+            disabled={articles.length === 0}
+            style={{
+              background: B.green,
+              color: B.white,
+              border: "none",
+              padding: "8px 16px",
+              borderRadius: 2,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: articles.length === 0 ? "not-allowed" : "pointer",
+              opacity: articles.length === 0 ? 0.6 : 1,
+            }}>
+            📄 Generate Reports →
           </button>
 
           <div style={{ display: "flex", gap: 6 }}>
@@ -477,6 +555,197 @@ export default function Explore() {
             >
               Next →
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0, 0, 0, 0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: B.white,
+            borderRadius: 8,
+            boxShadow: "0 10px 40px rgba(0, 0, 0, 0.2)",
+            maxWidth: 600,
+            width: "90%",
+            maxHeight: "80vh",
+            overflow: "auto",
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: "24px",
+              borderBottom: `1px solid ${B.gray100}`,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: B.gray900, margin: 0 }}>Generate Report</h2>
+              <button
+                onClick={() => {
+                  setShowReportModal(false);
+                  setSelectedArticles(new Set());
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: 24,
+                  cursor: "pointer",
+                  color: B.gray400,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{ padding: "24px" }}>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: B.gray900, marginBottom: 12 }}>
+                  Select Articles ({selectedArticles.size}/{articles.length})
+                </div>
+                <button
+                  onClick={toggleAllArticles}
+                  style={{
+                    fontSize: 11,
+                    padding: "6px 12px",
+                    background: selectedArticles.size === articles.length ? B.purple : B.gray50,
+                    color: selectedArticles.size === articles.length ? B.white : B.gray600,
+                    border: `1px solid ${B.gray200}`,
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    marginBottom: 12,
+                  }}
+                >
+                  {selectedArticles.size === articles.length ? "Deselect All" : "Select All"}
+                </button>
+                <div style={{
+                  border: `1px solid ${B.gray200}`,
+                  borderRadius: 4,
+                  maxHeight: 300,
+                  overflow: "auto",
+                }}>
+                  {articles.map((article, idx) => (
+                    <div
+                      key={article.id}
+                      onClick={() => toggleArticleSelection(article.id)}
+                      style={{
+                        padding: "12px 16px",
+                        borderBottom: idx < articles.length - 1 ? `1px solid ${B.gray100}` : "none",
+                        cursor: "pointer",
+                        background: selectedArticles.has(article.id) ? B.purplePale : B.white,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 10,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedArticles.has(article.id)}
+                        onChange={() => {}}
+                        style={{ marginTop: 2, cursor: "pointer" }}
+                      />
+                      <div style={{ flex: 1, fontSize: 12 }}>
+                        <div style={{ fontWeight: 600, color: B.gray900 }}>{article.title.substring(0, 60)}...</div>
+                        <div style={{ fontSize: 11, color: B.gray500, marginTop: 4 }}>
+                          {article.source} • {new Date(article.published_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Format Selection */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: B.gray900, marginBottom: 12 }}>Report Format</div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button
+                    onClick={() => setReportFormat("md")}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      background: reportFormat === "md" ? B.purple : B.gray50,
+                      color: reportFormat === "md" ? B.white : B.gray600,
+                      border: `1px solid ${reportFormat === "md" ? B.purple : B.gray200}`,
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    📝 Markdown (.md)
+                  </button>
+                  <button
+                    onClick={() => setReportFormat("txt")}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      background: reportFormat === "txt" ? B.purple : B.gray50,
+                      color: reportFormat === "txt" ? B.white : B.gray600,
+                      border: `1px solid ${reportFormat === "txt" ? B.purple : B.gray200}`,
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    📄 Text (.txt)
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", gap: 12 }}>
+                <button
+                  onClick={() => {
+                    setShowReportModal(false);
+                    setSelectedArticles(new Set());
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    background: B.gray50,
+                    color: B.gray600,
+                    border: `1px solid ${B.gray200}`,
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleGenerateReport}
+                  disabled={selectedArticles.size === 0}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    background: selectedArticles.size === 0 ? B.gray300 : B.green,
+                    color: B.white,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: selectedArticles.size === 0 ? "not-allowed" : "pointer",
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  ✓ Generate Report
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

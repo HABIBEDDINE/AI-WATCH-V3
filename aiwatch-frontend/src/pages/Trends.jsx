@@ -27,9 +27,9 @@ export default function Trends() {
   const [persona, setPersona] = useState("cto");
 
   const PERSONAS = [
-    { id: "cto", label: "CTO (Ahmed)" },
-    { id: "innovation", label: "Innovation Manager (Camille)" },
-    { id: "strategy", label: "Strategy Director (Omar)" },
+    { id: "cto", label: "CTO" },
+    { id: "innovation", label: "Innovation Manager" },
+    { id: "strategy", label: "Strategy Director" },
   ];
 
   // Fetch trends data
@@ -192,10 +192,10 @@ export default function Trends() {
 
           {/* Top Topics */}
           <div>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: B.gray900, marginBottom: 12 }}>Top Topics (Last 10)</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: B.gray900, marginBottom: 12 }}>Top Topics (Most Popular)</h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
               {trends.top_topics && trends.top_topics.length > 0 ? (
-                trends.top_topics.map((topic, idx) => (
+                trends.top_topics.slice(0, 5).map((topic, idx) => (
                   <div
                     key={idx}
                     style={{

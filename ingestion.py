@@ -208,7 +208,8 @@ def fetch_news(query, days_back=7, max_results=10):
                 'url': article.get('url', ''),
                 'source': article.get('source', {}).get('name', 'Unknown'),
                 'published_at': article.get('publishedAt', ''),
-                'image_url': article.get('urlToImage', '')
+                'image_url': article.get('urlToImage', ''),
+                'source_api': 'newsapi'
             })
         
         return cleaned_articles
@@ -388,9 +389,10 @@ def fetch_sector_news(sector_queries, days_back=7, max_per_sector=10, use_perple
 def run_ingest_fast(topic: str = None, limit: int = 20):
     """
     Fast ingest from MULTIPLE SOURCES WITHOUT summarization:
-    - NewsAPI 
-    - NewsData API
-    - Google News RSS
+    PRIORITY ORDER:
+    1. Perplexity AI (real-time web search, no rate limits)
+    2. NewsAPI (50k+ sources, may be rate-limited on free tier)
+    3. Google News RSS (free, always works)
     
     This is optimized for quick data refresh - fetches from all sources and
     returns articles immediately without calling expensive OpenAI summarizer.
@@ -415,20 +417,20 @@ def run_ingest_fast(topic: str = None, limit: int = 20):
     try:
         all_raw_articles = []
         
-        # 1. Fetch from NewsAPI (FAST)
-        logger.info(f"   📡 Fetching from NewsAPI...")
+        # 1. Fetch from Perplexity AI (FAST - real-time web search, no rate limits)
+        logger.info(f"   🔮 Fetching from Perplexity AI (real-time web search)...")
+        perplexity_articles = fetch_news_perplexity(query, max_results=limit)
+        all_raw_articles.extend(perplexity_articles)
+        logger.info(f"      ✓ Got {len(perplexity_articles)} articles from Perplexity")
+        
+        # 2. Fetch from NewsAPI (FAST - world's largest news API)
+        logger.info(f"   📡 Fetching from NewsAPI (50k+ sources)...")
         newsapi_articles = fetch_news(query, days_back=7, max_results=limit)
         all_raw_articles.extend(newsapi_articles)
         logger.info(f"      ✓ Got {len(newsapi_articles)} articles from NewsAPI")
         
-        # 2. Fetch from NewsData API (FAST)
-        logger.info(f"   📡 Fetching from NewsData API...")
-        newsdata_articles = fetch_newsdata(query, days_back=7, max_results=limit)
-        all_raw_articles.extend(newsdata_articles)
-        logger.info(f"      ✓ Got {len(newsdata_articles)} articles from NewsData")
-        
-        # 3. Fetch from Google News RSS (FAST)
-        logger.info(f"   📡 Fetching from Google News RSS...")
+        # 3. Fetch from Google News RSS (FAST - free, unlimited)
+        logger.info(f"   🌐 Fetching from Google News RSS (free, unlimited)...")
         google_articles = fetch_google_news_rss(query, max_results=limit)
         all_raw_articles.extend(google_articles)
         logger.info(f"      ✓ Got {len(google_articles)} articles from Google News RSS")

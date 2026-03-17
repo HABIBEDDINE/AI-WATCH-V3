@@ -121,21 +121,15 @@ def fetch_google_news_rss(query, max_results=15):
     """
     try:
         import feedparser
+        from urllib.parse import quote
     except ImportError:
         print("  ⚠️ feedparser not installed. Run: pip install feedparser")
         return []
     
-    # Google News RSS URL
+    # Google News RSS URL - properly URL encode the query
     base_url = "https://news.google.com/rss/search"
-    params = {
-        'q': query,
-        'hl': 'en-US',
-        'gl': 'US',
-        'ceid': 'US:en'
-    }
-    
-    # Build URL manually since feedparser might not handle params well
-    url = f"{base_url}?q={query}&hl=en-US&gl=US&ceid=US:en"
+    encoded_query = quote(query)
+    url = f"{base_url}?q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
     
     try:
         feed = feedparser.parse(url)
@@ -167,6 +161,8 @@ def fetch_google_news_rss(query, max_results=15):
         print(f"  ⚠️ Google News RSS request failed: {e}")
         return []
 
+
+def fetch_news(query, days_back=7, max_results=10):
     """
     Fetch news articles from NewsAPI.
     

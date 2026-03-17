@@ -258,7 +258,8 @@ export default function Explore() {
       markdownContent += `**Source:** ${article.source}\n`;
       markdownContent += `**Signal:** ${article.signal_strength}\n`;
       markdownContent += `**Relevance:** ${article.relevance}/10\n`;
-      markdownContent += `**Published:** ${new Date(article.published_at).toLocaleDateString()}\n\n`;
+      markdownContent += `**Published:** ${new Date(article.published_at).toLocaleDateString()}\n`;
+      markdownContent += `**URL:** ${article.url || "No URL available"}\n\n`;
       markdownContent += `${article.summary || "Summary not available"}\n\n`;
       markdownContent += `---\n\n`;
     });
@@ -300,7 +301,7 @@ export default function Explore() {
         // Articles
         selected.forEach((article, idx) => {
           // Check if we need a new page
-          if (yPosition > pageHeight - margin - 20) {
+          if (yPosition > pageHeight - margin - 40) {
             pdf.addPage();
             yPosition = margin;
           }
@@ -322,7 +323,18 @@ export default function Explore() {
           pdf.text(`Source: ${article.source} | Signal: ${article.signal_strength} | Relevance: ${article.relevance}/10`, margin, yPosition);
           yPosition += 6;
           pdf.text(`Published: ${new Date(article.published_at).toLocaleDateString()}`, margin, yPosition);
-          yPosition += 8;
+          yPosition += 6;
+
+          // Article URL
+          if (article.url) {
+            pdf.setTextColor(107, 44, 148); // Purple for URL
+            pdf.setFont(undefined, "bold");
+            const urlLines = pdf.splitTextToSize(`URL: ${article.url}`, maxWidth);
+            pdf.text(urlLines, margin, yPosition);
+            yPosition += urlLines.length * 5 + 2;
+          }
+
+          yPosition += 2;
 
           // Summary
           pdf.setFontSize(10);

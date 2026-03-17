@@ -1,0 +1,485 @@
+import { useState, useEffect, useCallback } from "react";
+import { getArticles, triggerIngest } from "../services/api";
+
+const B = {
+  purple: "#6B2C94",
+  purpleDeep: "#4a1870",
+  purplePale: "#f5eefb",
+  white: "#ffffff",
+  gray50: "#fafafa",
+  gray100: "#f4f4f4",
+  gray200: "#e8e8e8",
+  gray300: "#d0d0d0",
+  gray400: "#999999",
+  gray500: "#666666",
+  gray600: "#444444",
+  gray700: "#222222",
+  gray900: "#111111",
+  green: "#1a8a4a",
+  greenLight: "#e8f5ee",
+  amber: "#b45309",
+  amberLight: "#fef3e2",
+  blue: "#1a5fa8",
+  darkBg: "#0a0a0a",
+};
+
+const TOPICS = ["All Industries", "AI", "Fintech", "HealthTech", "Cybersecurity", "CleanTech", "Robotics"];
+const SIGNALS = ["All", "Strong", "Weak"];
+
+function StatCard({ label, value, delta, icon }) {
+  return (
+    <div style={{
+      background: B.gray50,
+      border: `1px solid ${B.gray100}`,
+      borderRadius: 4,
+      padding: "16px 18px",
+      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: B.green, letterSpacing: 0.5 }}>
+          ▲ {delta}
+        </span>
+      </div>
+      <div style={{ fontSize: 26, fontWeight: 800, color: B.purple, marginBottom: 4, letterSpacing: -0.5 }}>{value}</div>
+      <div style={{ fontSize: 11, color: B.gray400, fontWeight: 600, letterSpacing: 0.3 }}>{label}</div>
+    </div>
+  );
+}
+
+function ArticleCard({ article, expanded, onToggle }) {
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        background: expanded ? B.gray50 : B.white,
+        border: `1px solid ${B.gray100}`,
+        borderLeft: expanded ? `4px solid ${B.purple}` : "4px solid transparent",
+        borderRadius: 4,
+        padding: "20px 24px",
+        cursor: "pointer",
+        transition: "all 0.2s",
+        minHeight: 280,
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+        <span style={{ fontSize: 10, color: B.gray400, fontWeight: 600 }}>{article.source}</span>
+        <span style={{ fontSize: 9, color: B.gray400 }}>{new Date(article.published_at).toLocaleDateString()}</span>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 9, background: B.purple, color: B.white, padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>{article.topic}</span>
+        <span style={{
+          fontSize: 9,
+          background: article.signal_strength === "Strong" ? B.green : B.amber,
+          color: B.white,
+          padding: "2px 8px",
+          borderRadius: 4,
+          fontWeight: 700,
+          textTransform: "uppercase",
+        }}>
+          {article.signal_strength}
+        </span>
+      </div>
+
+      <div style={{ fontSize: 14, fontWeight: 700, color: B.gray900, lineHeight: 1.45, marginBottom: 12, flex: 1 }}>
+        {article.title}
+      </div>
+
+      <div style={{ fontSize: 13, color: B.gray600, lineHeight: 1.6, marginBottom: 12, flex: 1 }}>
+        {(article.summary || "").substring(0, 120)}...
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: 10, color: B.gray500 }}>
+          {article.industry}
+        </span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 9, color: B.gray400 }}>Relevance</span>
+        <div style={{ flex: 1, height: 3, background: B.gray200, borderRadius: 2 }}>
+          <div style={{ width: `${(article.relevance || 5) * 10}%`, height: "100%", background: B.purple, borderRadius: 2 }} />
+        </div>
+        <span style={{ fontSize: 10, fontWeight: 700, color: B.purple, minWidth: 20 }}>{article.relevance || 5}/10</span>
+      </div>
+
+      <a 
+        onClick={(e) => {
+          e.preventDefault();
+          const articleUrl = article.url || article.link || `https://www.google.com/search?q=${encodeURIComponent(article.title)}`;
+          window.open(articleUrl, "_blank", "noopener,noreferrer");
+        }}
+        style={{ fontSize: 11, color: B.purple, fontWeight: 700, cursor: "pointer", textDecoration: "none" }}>
+        Read more →
+      </a>
+    </div>
+  );
+}
+
+export default function Explore() {
+  const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
+  const [viewMode, setViewMode] = useState("grid");
+  const [selectedTopic, setSelectedTopic] = useState("All Industries");
+  const [selectedSignal, setSelectedSignal] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedCardId, setExpandedCardId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Debounce timer
+  const [searchTimeout, setSearchTimeout] = useState(null);
+
+  // Fetch articles
+  const fetchArticles = useCallback(async (page = 1, pageSize = itemsPerPage) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getArticles({
+        topic: selectedTopic === "All Industries" ? undefined : selectedTopic,
+        signal: selectedSignal === "All" ? undefined : selectedSignal,
+        search: searchQuery || undefined,
+        page,
+        pageSize,
+      });
+      setArticles(response.items || []);
+      setTotalCount(response.total || 0);
+    } catch (err) {
+      setError(err.message);
+      setArticles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedTopic, selectedSignal, searchQuery, itemsPerPage]);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchArticles(1, itemsPerPage);
+  }, [fetchArticles, itemsPerPage]);
+
+  // Fetch when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchArticles(1, itemsPerPage);
+  }, [selectedTopic, selectedSignal, fetchArticles, itemsPerPage]);
+
+  // Debounced search
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    if (searchTimeout) clearTimeout(searchTimeout);
+    const timeout = setTimeout(() => {
+      setCurrentPage(1);
+      fetchArticles(1, itemsPerPage);
+    }, 400);
+    setSearchTimeout(timeout);
+  };
+
+  // Handle page change
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    fetchArticles(page, itemsPerPage);
+  };
+
+  // Handle ingest
+  const handleIngest = async () => {
+    try {
+      setLoading(true);
+      await triggerIngest();
+      await fetchArticles(1, itemsPerPage);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+  return (
+    <div style={{ background: B.white, padding: "24px 28px", minHeight: "100%" }}>
+      {/* ── TOP STATS ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 24 }}>
+        <StatCard label="Articles" value={totalCount} delta="+12 today" icon="📄" />
+        <StatCard label="Strong Signals" value={articles.filter(a => a.signal_strength === "Strong").length} delta="+5" icon="📡" />
+        <StatCard label="Avg Relevance" value={articles.length ? (articles.reduce((a, b) => a + (b.relevance || 5), 0) / articles.length).toFixed(1) : "0"} delta="+0.3" icon="🎯" />
+        <StatCard label="Weak Signals" value={articles.filter(a => a.signal_strength === "Weak").length} delta="+3" icon="💰" />
+      </div>
+
+      {/* ── CONTROLS BAR ── */}
+      <div style={{ background: B.white, border: `1px solid ${B.gray100}`, padding: "16px 20px", marginBottom: 24, borderRadius: 4, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+          <button
+            onClick={handleIngest}
+            disabled={loading}
+            style={{
+              background: B.purple,
+              color: B.white,
+              border: "none",
+              padding: "8px 16px",
+              borderRadius: 2,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+            }}>
+            {loading ? "Loading..." : "Generate New Data →"}
+          </button>
+
+          <div style={{ display: "flex", gap: 6 }}>
+            {TOPICS.map(topic => (
+              <button
+                key={topic}
+                onClick={() => setSelectedTopic(topic)}
+                style={{
+                  padding: "6px 12px",
+                  border: selectedTopic === topic ? `2px solid ${B.purple}` : `1px solid ${B.gray100}`,
+                  background: selectedTopic === topic ? B.purple : B.gray50,
+                  color: selectedTopic === topic ? B.white : B.gray600,
+                  fontSize: 11,
+                  fontWeight: selectedTopic === topic ? 700 : 500,
+                  cursor: "pointer",
+                  borderRadius: 4,
+                }}
+              >
+                {topic}
+              </button>
+            ))}
+          </div>
+
+          <select
+            value={selectedSignal}
+            onChange={(e) => setSelectedSignal(e.target.value)}
+            style={{
+              padding: "6px 10px",
+              border: `1px solid ${B.gray100}`,
+              background: B.white,
+              fontSize: 11,
+              cursor: "pointer",
+              borderRadius: 4,
+            }}>
+            {SIGNALS.map(signal => (
+              <option key={signal} value={signal}>{signal}</option>
+            ))}
+          </select>
+
+          <input
+            type="text"
+            placeholder="Search articles..."
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            style={{
+              padding: "6px 12px",
+              border: `1px solid ${B.gray100}`,
+              borderRadius: 4,
+              fontSize: 11,
+              width: 200,
+            }}
+          />
+
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setViewMode("grid")}
+              style={{
+                padding: "6px 10px",
+                border: viewMode === "grid" ? `2px solid ${B.purple}` : `1px solid ${B.gray100}`,
+                background: viewMode === "grid" ? B.purple : B.gray50,
+                color: viewMode === "grid" ? B.white : B.gray600,
+                cursor: "pointer",
+                fontSize: 14,
+                borderRadius: 4,
+              }}>
+              ⊞
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              style={{
+                padding: "6px 10px",
+                border: viewMode === "list" ? `2px solid ${B.purple}` : `1px solid ${B.gray100}`,
+                background: viewMode === "list" ? B.purple : B.gray50,
+                color: viewMode === "list" ? B.white : B.gray600,
+                cursor: "pointer",
+                fontSize: 14,
+                borderRadius: 4,
+              }}>
+              ☰
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── ERROR MESSAGE ── */}
+      {error && (
+        <div style={{
+          background: "#fdf0ef",
+          border: `1px solid ${B.amber}`,
+          color: B.amber,
+          padding: "12px 16px",
+          marginBottom: 16,
+          borderRadius: 4,
+          fontSize: 12,
+        }}>
+          Error: {error}
+        </div>
+      )}
+
+      {/* ── LOADING SPINNER ── */}
+      {loading && (
+        <div style={{
+          textAlign: "center",
+          padding: "40px 20px",
+          fontSize: 12,
+          color: B.gray500,
+        }}>
+          Loading articles...
+        </div>
+      )}
+
+      {/* ── GRID VIEW ── */}
+      {!loading && viewMode === "grid" && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
+          gap: 16,
+          marginBottom: 24,
+        }}>
+          {articles.map(article => (
+            <ArticleCard
+              key={article.id}
+              article={article}
+              expanded={expandedCardId === article.id}
+              onToggle={() => setExpandedCardId(expandedCardId === article.id ? null : article.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── LIST VIEW ── */}
+      {!loading && viewMode === "list" && (
+        <div style={{ background: B.white, border: `1px solid ${B.gray100}`, marginBottom: 24, borderRadius: 4, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray100}` }}>
+              <tr>
+                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>#</th>
+                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Title</th>
+                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Source</th>
+                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Signal</th>
+                <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>Relevance</th>
+                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Published</th>
+              </tr>
+            </thead>
+            <tbody>
+              {articles.map((article, idx) => (
+                <tr key={article.id} style={{
+                  borderBottom: `1px solid ${B.gray100}`,
+                  background: idx % 2 === 0 ? B.white : B.gray50,
+                }}>
+                  <td style={{ padding: "12px 16px", color: B.gray500 }}>{idx + 1}</td>
+                  <td style={{ padding: "12px 16px", color: B.gray900, fontWeight: 600, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {article.title}
+                  </td>
+                  <td style={{ padding: "12px 16px", color: B.gray600 }}>{article.source}</td>
+                  <td style={{
+                    padding: "12px 16px",
+                    color: article.signal_strength === "Strong" ? B.green : B.amber,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    fontSize: 10,
+                  }}>
+                    {article.signal_strength}
+                  </td>
+                  <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, color: B.purple }}>
+                    {article.relevance || 5}/10
+                  </td>
+                  <td style={{ padding: "12px 16px", color: B.gray600 }}>
+                    {new Date(article.published_at).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── PAGINATION ── */}
+      {!loading && articles.length > 0 && (
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: B.white,
+          border: `1px solid ${B.gray100}`,
+          padding: "16px 20px",
+          borderRadius: 4,
+        }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: B.gray500, fontWeight: 600 }}>Show:</span>
+            {[10, 25, 50, 100].map(count => (
+              <button
+                key={count}
+                onClick={() => {
+                  setItemsPerPage(count);
+                  handlePageChange(1);
+                }}
+                style={{
+                  padding: "4px 10px",
+                  border: itemsPerPage === count ? `2px solid ${B.purple}` : `1px solid ${B.gray200}`,
+                  background: itemsPerPage === count ? B.purplePale : B.white,
+                  color: itemsPerPage === count ? B.purple : B.gray600,
+                  fontSize: 11,
+                  fontWeight: itemsPerPage === count ? 700 : 500,
+                  cursor: "pointer",
+                  borderRadius: 4,
+                }}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+
+          <span style={{ fontSize: 11, color: B.gray500, fontWeight: 600 }}>
+            Page {currentPage} of {totalPages}
+          </span>
+
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              style={{
+                padding: "6px 12px",
+                border: `1px solid ${B.gray100}`,
+                background: B.white,
+                borderRadius: 4,
+                cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                opacity: currentPage === 1 ? 0.5 : 1,
+                fontSize: 11,
+              }}
+            >
+              ← Prev
+            </button>
+            <button
+              onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              style={{
+                padding: "6px 12px",
+                border: `1px solid ${B.gray100}`,
+                background: B.white,
+                borderRadius: 4,
+                cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                opacity: currentPage === totalPages ? 0.5 : 1,
+                fontSize: 11,
+              }}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

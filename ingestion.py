@@ -42,7 +42,131 @@ def get_perplexity_api_key():
     return os.getenv('PERPLEXITY_API_KEY')
 
 
-def fetch_news(query, days_back=7, max_results=10):
+def get_newsdata_api_key():
+    """Get NewsData API key from environment."""
+    return os.getenv('NEWSDATA_API_KEY')
+
+
+def fetch_newsdata(query, days_back=7, max_results=10):
+    """
+    Fetch news articles from NewsData API.
+    
+    Args:
+        query: Search query (e.g., "Artificial Intelligence")
+        days_back: How many days back to search
+        max_results: Maximum number of articles to return
+    
+    Returns:
+        List of article dictionaries
+    """
+    api_key = get_newsdata_api_key()
+    if not api_key:
+        print("  ⚠️ NewsData API key not found, skipping...")
+        return []
+    
+    # NewsData.io API endpoint
+    url = "https://newsdata.io/api/1/news"
+    
+    # Calculate date range
+    from_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+    
+    params = {
+        'q': query,
+        'language': 'en',
+        'from': from_date,
+        'size': max_results,
+        'apikey': api_key
+    }
+    
+    try:
+        response = requests.get(url, params=params, verify=False, timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            articles = data.get('results', [])
+            
+            # Clean and structure the data
+            cleaned_articles = []
+            for article in articles:
+                cleaned_articles.append({
+                    'title': article.get('title', 'No title'),
+                    'description': article.get('description', ''),
+                    'content': article.get('content', '') or article.get('description', ''),
+                    'url': article.get('link', ''),
+                    'source': article.get('source_id', 'NewsData'),
+                    'published_at': article.get('pubDate', ''),
+                    'image_url': article.get('image_url', ''),
+                    'source_api': 'newsdata'
+                })
+            
+            return cleaned_articles
+        else:
+            print(f"  ⚠️ NewsData API error: {response.status_code}")
+            return []
+    except Exception as e:
+        print(f"  ⚠️ NewsData request failed: {e}")
+        return []
+
+
+def fetch_google_news_rss(query, max_results=15):
+    """
+    Fetch news from Google News RSS feed.
+    
+    Args:
+        query: Search query (e.g., "artificial intelligence")
+        max_results: Maximum number of articles to return
+    
+    Returns:
+        List of article dictionaries
+    """
+    try:
+        import feedparser
+    except ImportError:
+        print("  ⚠️ feedparser not installed. Run: pip install feedparser")
+        return []
+    
+    # Google News RSS URL
+    base_url = "https://news.google.com/rss/search"
+    params = {
+        'q': query,
+        'hl': 'en-US',
+        'gl': 'US',
+        'ceid': 'US:en'
+    }
+    
+    # Build URL manually since feedparser might not handle params well
+    url = f"{base_url}?q={query}&hl=en-US&gl=US&ceid=US:en"
+    
+    try:
+        feed = feedparser.parse(url)
+        
+        articles = []
+        for entry in feed.entries[:max_results]:
+            # Google News RSS has limited metadata, so we extract what we can
+            title = entry.get('title', 'No title')
+            
+            # Extract description from summary if available
+            description = entry.get('summary', '')
+            
+            # Clean HTML from description
+            description = re.sub(r'<[^>]+>', '', description)
+            
+            articles.append({
+                'title': title,
+                'description': description[:200],  # Limit to 200 chars
+                'content': description,
+                'url': entry.get('link', ''),
+                'source': 'Google News',
+                'published_at': entry.get('published', ''),
+                'image_url': '',
+                'source_api': 'google_news_rss'
+            })
+        
+        return articles
+    except Exception as e:
+        print(f"  ⚠️ Google News RSS request failed: {e}")
+        return []
+
     """
     Fetch news articles from NewsAPI.
     
@@ -267,17 +391,20 @@ def fetch_sector_news(sector_queries, days_back=7, max_per_sector=10, use_perple
 
 def run_ingest_fast(topic: str = None, limit: int = 20):
     """
-    Fast ingest from NEWS_API WITHOUT summarization.
+    Fast ingest from MULTIPLE SOURCES WITHOUT summarization:
+    - NewsAPI 
+    - NewsData API
+    - Google News RSS
     
-    This is optimized for quick data refresh - fetches from NEWS_API and
+    This is optimized for quick data refresh - fetches from all sources and
     returns articles immediately without calling expensive OpenAI summarizer.
     
     Args:
         topic: Topic name (AI, Fintech, HealthTech, Cybersecurity, CleanTech, Robotics)
-        limit: Number of articles to fetch (default 20)
+        limit: Number of articles to fetch per source (default 20)
     
     Returns:
-        List of articles with basic metadata (no OpenAI summarization)
+        List of articles with basic metadata (combined from all sources, deduplicated)
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -287,20 +414,47 @@ def run_ingest_fast(topic: str = None, limit: int = 20):
         return []
     
     query = PRESET_SECTORS[topic]
-    logger.info(f"⚡ Fast ingest from NEWS_API for topic: {topic}")
+    logger.info(f"⚡ Fast ingest from MULTIPLE SOURCES for topic: {topic}")
     
     try:
-        # 1. Fetch raw articles from NewsAPI (FAST)
-        raw_articles = fetch_news(query, days_back=7, max_results=limit)
-        logger.info(f"   ✓ Fetched {len(raw_articles)} articles from NEWS_API")
+        all_raw_articles = []
         
-        if not raw_articles:
+        # 1. Fetch from NewsAPI (FAST)
+        logger.info(f"   📡 Fetching from NewsAPI...")
+        newsapi_articles = fetch_news(query, days_back=7, max_results=limit)
+        all_raw_articles.extend(newsapi_articles)
+        logger.info(f"      ✓ Got {len(newsapi_articles)} articles from NewsAPI")
+        
+        # 2. Fetch from NewsData API (FAST)
+        logger.info(f"   📡 Fetching from NewsData API...")
+        newsdata_articles = fetch_newsdata(query, days_back=7, max_results=limit)
+        all_raw_articles.extend(newsdata_articles)
+        logger.info(f"      ✓ Got {len(newsdata_articles)} articles from NewsData")
+        
+        # 3. Fetch from Google News RSS (FAST)
+        logger.info(f"   📡 Fetching from Google News RSS...")
+        google_articles = fetch_google_news_rss(query, max_results=limit)
+        all_raw_articles.extend(google_articles)
+        logger.info(f"      ✓ Got {len(google_articles)} articles from Google News RSS")
+        
+        if not all_raw_articles:
             logger.warning(f"   ⚠️  No articles found for {topic}")
             return []
         
+        # Deduplicate by title (simple approach)
+        seen_titles = set()
+        deduplicated = []
+        for article in all_raw_articles:
+            title = article.get('title', '').lower()
+            if title and title not in seen_titles:
+                seen_titles.add(title)
+                deduplicated.append(article)
+        
+        logger.info(f"   ✓ Deduplicated: {len(all_raw_articles)} → {len(deduplicated)}")
+        
         # 2. Quick formatting WITHOUT summarization
         processed_articles = []
-        for idx, article in enumerate(raw_articles, 1):
+        for idx, article in enumerate(deduplicated[:limit * 2], 1):  # Keep more articles after dedup
             try:
                 # Generate a unique ID
                 import hashlib
@@ -311,6 +465,9 @@ def run_ingest_fast(topic: str = None, limit: int = 20):
                 # Basic relevance score (random for now, can be improved)
                 import random
                 relevance = random.randint(6, 10)
+                
+                # Determine source API
+                source_api = article.get('source_api', 'Unknown')
                 
                 formatted_article = {
                     'id': article_id,
@@ -327,7 +484,7 @@ def run_ingest_fast(topic: str = None, limit: int = 20):
                     'relevance': relevance,
                     'relevance_score': relevance,
                     'ingestion_date': datetime.now().isoformat(),
-                    'ingestion_source': 'NewsAPI + FAST',
+                    'ingestion_source': f'Multi-Source ({source_api})',
                     'industry': topic,
                     'market_segment': topic,
                 }
@@ -338,7 +495,7 @@ def run_ingest_fast(topic: str = None, limit: int = 20):
                 logger.error(f"   ⚠️  Error processing article {idx}: {e}")
                 continue
         
-        logger.info(f"   ✅ Fast ingest complete: {len(processed_articles)} articles")
+        logger.info(f"   ✅ Fast ingest complete: {len(processed_articles)} articles from multiple sources")
         return processed_articles
         
     except Exception as e:

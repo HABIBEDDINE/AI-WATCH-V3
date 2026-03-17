@@ -13,7 +13,7 @@
 The platform combines **news aggregation**, **AI analysis**, and **interactive dashboards** to transform raw tech data into strategic intelligence. Get real-time market signals, funding trends, and competitive insights automatically.
 
 ### Key Capabilities
-- 📰 **Automated News Collection** - NEWS_API + Perplexity real-time search
+- 📰 **Automated News Collection** - NEWS_API + NewsData + Google News RSS + Perplexity real-time search
 - 🧠 **AI-Powered Analysis** - OpenAI GPT-4o-mini summarization
 - 📊 **Signal Detection** - Identify weak/strong market signals
 - 📈 **Interactive Dashboard** - 7-page React frontend with charts
@@ -24,7 +24,7 @@ The platform combines **news aggregation**, **AI analysis**, and **interactive d
 
 ## 📊 Tech Stack
 
-**Backend**: FastAPI (Python 3.8+), Perplexity API, NEWS_API, OpenAI GPT-4o-mini, APScheduler
+**Backend**: FastAPI (Python 3.8+), NewsAPI, NewsData API, Google News RSS, Perplexity API, OpenAI GPT-4o-mini, APScheduler
 
 **Frontend**: React 19.2.4, Recharts, Axios, React Router v6
 
@@ -130,6 +130,66 @@ npm start
 ```
 
 ✅ **Done!** Open http://localhost:3000 in your browser.
+
+---
+
+## 📡 DATA SOURCES
+
+AI Watch aggregates news from **multiple sources** for comprehensive coverage:
+
+### 1. **NewsAPI** 🟦
+- **URL**: https://newsapi.org
+- **Type**: REST API
+- **Coverage**: 50,000+ sources worldwide
+- **Speed**: Real-time
+- **Tier**: Free (unlimited requests)
+- **Env Var**: `NEWS_API_KEY`
+
+### 2. **NewsData API** 🟨  
+- **URL**: https://newsdata.io
+- **Type**: REST API  
+- **Coverage**: Global news sources, 120+ countries
+- **Speed**: Real-time
+- **Tier**: Free with daily limits
+- **Env Var**: `NEWSDATA_API_KEY`
+- **Your Key**: `pub_c85406a5bbd348e6b61e16b273e29b8b`
+
+### 3. **Google News RSS** 🟩
+- **URL**: https://news.google.com/rss
+- **Type**: RSS Feed
+- **Coverage**: Aggregated from Google News
+- **Speed**: Near real-time
+- **Cost**: **Completely FREE** ✅
+- **Env Var**: **None required**
+- **Example**: `https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en`
+
+### 4. **Perplexity API** (Optional) 🟪
+- **URL**: https://www.perplexity.ai
+- **Type**: Real-time web search AI
+- **Coverage**: Live internet search
+- **Speed**: 30+ seconds per query
+- **Tier**: Paid (enterprise)
+- **Env Var**: `PERPLEXITY_API_KEY`
+
+---
+
+## 🔄 How Data Flows
+
+```
+NewsAPI + NewsData + Google News RSS + Perplexity
+        ↓
+  Fetch Articles (Fast)
+        ↓
+ Deduplicate by Title
+        ↓
+  Format Metadata
+        ↓
+  [Optional: OpenAI Analysis]
+        ↓
+ Store in APIs Cache
+        ↓
+Dashboard + Reports
+```
 
 ---
 

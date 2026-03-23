@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
-import { getFeed, getRadar, getTrends, getJourney, getHealth } from "./services/api";
+import { getFeed, getRadar, getTrends, getHealth } from "./services/api";
 import Explore from "./pages/Explore";
 import Solutions from "./pages/Solutions";
 import Trends from "./pages/Trends";
-import Journey from "./pages/Journey";
 import DataPreview from "./pages/DataPreview";
 import Reports from "./pages/Reports";
 import Newsletter from "./pages/Newsletter";
@@ -63,7 +62,6 @@ const PERSONAS = {
     kpis: [
       { label: "Competitors Tracked", value: "23",     delta: "+2 this week", up: true, icon: "🏁" },
       { label: "Funding Rounds",      value: "14",     delta: "+5 new",       up: true, icon: "💰" },
-      { label: "Weekly Brief",        value: "Ready",  delta: "Due Monday",   up: true, icon: "📬" },
       { label: "Use Cases Mapped",    value: "89",     delta: "+11 added",    up: true, icon: "🗂️" },
     ],
   },
@@ -338,7 +336,6 @@ export default function AIWatchDXC() {
       { topic: "Market Monitoring", pct: 57, delta: "+3%" },
     ],
   });
-  const [journeySteps, setJourneySteps] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [health, setHealth] = useState({ status: "checking" });
   const [loadError, setLoadError] = useState("");
@@ -394,10 +391,9 @@ export default function AIWatchDXC() {
         setFeed(fallbackCombined);
       }
 
-      const [radarResult, trendsResult, journeyResult] = await Promise.allSettled([
+      const [radarResult, trendsResult] = await Promise.allSettled([
         getRadar(mainPersona, 4),
         getTrends(mainPersona, 5),
-        getJourney(mainPersona, 3),
       ]);
 
       if (radarResult.status === "fulfilled") {
@@ -426,14 +422,8 @@ export default function AIWatchDXC() {
         });
       }
 
-      if (journeyResult.status === "fulfilled") {
-        setJourneySteps(journeyResult.value.steps || []);
-      } else {
-        setJourneySteps([]);
-      }
-
       const hasFeedFailure = feedResults.some(r => r.status === "rejected");
-      const hasAuxFailure = [radarResult, trendsResult, journeyResult].some(r => r.status === "rejected");
+      const hasAuxFailure = [radarResult, trendsResult].some(r => r.status === "rejected");
       if (hasFeedFailure) {
         setLoadError("Some backend APIs are slow or unavailable. Showing partial fallback data.");
         pushToast("Explore is using fallback data because feed APIs timed out.", "error");
@@ -455,7 +445,6 @@ export default function AIWatchDXC() {
       );
       setFeed(fallbackCombined);
       setProducts(PRODUCTS[mainPersona]);
-      setJourneySteps([]);
       setLoadError("Could not reach backend APIs. Showing fallback data.");
       pushToast("Backend request failed. Showing fallback data.", "error");
     } finally {
@@ -501,7 +490,6 @@ export default function AIWatchDXC() {
     { id:"feed",       label:"Explore",        path:"/" },
     { id:"radar",      label:"Solutions",      path:"/solutions" },
     { id:"trends",     label:"Trends",         path:"/trends" },
-    { id:"journey",    label:"Journey",        path:"/journey" },
     { id:"data",       label:"Data Preview",   path:"/data-preview" },
     { id:"reports",    label:"Reports",        path:"/reports" },
     { id:"newsletter", label:"Newsletter",     path:"/newsletter" },
@@ -605,12 +593,6 @@ export default function AIWatchDXC() {
           })}
 
           <div style={{ flex:1 }} />
-
-          <div style={{ margin:"16px", padding:"16px", background:B.darkBg, borderLeft:`4px solid ${p.tagColor}` }}>
-            <div style={{ fontSize:11, fontWeight:700, color:B.white, marginBottom:4 }}>Weekly Brief</div>
-            <div style={{ fontSize:10, color:B.gray400, marginBottom:12, lineHeight:1.5 }}>Auto-generated every Monday 7am</div>
-            <button className="dxc-btn-primary" style={{ width:"100%", padding:"8px 0", fontSize:11 }}>Preview Draft →</button>
-          </div>
         </div>
 
         {/* ── MAIN CONTENT ── */}
@@ -646,7 +628,6 @@ export default function AIWatchDXC() {
             <Route path="/" element={<Explore />} />
             <Route path="/solutions" element={<Solutions />} />
             <Route path="/trends" element={<Trends />} />
-            <Route path="/journey" element={<Journey />} />
             <Route path="/data-preview" element={<DataPreview />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/newsletter" element={<Newsletter />} />

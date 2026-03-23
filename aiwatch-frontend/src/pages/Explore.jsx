@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { getArticles, triggerIngest } from "../services/api";
+import { getArticles, triggerIngest, saveReport } from "../services/api";
 import { jsPDF } from "jspdf";
 
 const B = {
@@ -212,11 +212,51 @@ export default function Explore() {
   const handleIngest = async () => {
     try {
       setLoading(true);
-      await triggerIngest();
-      await fetchArticles(1, itemsPerPage);
+      setError(null);
+      
+      const response = await triggerIngest();
+      
+      if (response.status === "started") {
+        // Background task started - show message and poll for results
+        console.log("Ingestion started in background. Polling for results...");
+        
+        // Poll every 2 seconds for up to 120 seconds (2 minutes)
+        let attempts = 0;
+        const maxAttempts = 60;
+        
+        const pollInterval = setInterval(async () => {
+          attempts++;
+          try {
+            const articlesResponse = await getArticles({
+              page: 1,
+              pageSize: itemsPerPage,
+            });
+            
+            if (articlesResponse.items && articlesResponse.items.length > 0) {
+              // Articles found! Update state and clear interval
+              setArticles(articlesResponse.items);
+              setTotalCount(articlesResponse.total || 0);
+              clearInterval(pollInterval);
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.warn("Poll attempt failed:", err);
+          }
+          
+          // Stop polling after max attempts
+          if (attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+            setLoading(false);
+          }
+        }, 2000);
+      } else {
+        // Inline ingestion completed immediately
+        await fetchArticles(1, itemsPerPage);
+        setLoading(false);
+      }
     } catch (err) {
-      setError(err.message);
-    } finally {
+      setError("Ingestion failed: " + err.message);
       setLoading(false);
     }
   };
@@ -242,7 +282,7 @@ export default function Explore() {
   };
 
   // Generate report
-  const handleGenerateReport = () => {
+  const handleGenerateReport = async () => {
     if (selectedArticles.size === 0) {
       setError("Please select at least one article");
       return;
@@ -264,8 +304,63 @@ export default function Explore() {
       markdownContent += `---\n\n`;
     });
 
-    // Create download based on format
-    if (reportFormat === "pdf") {
+    try {
+      // ✅ SAVE REPORT TO REPORTS PAGE
+      const reportTitle = `AI Report - ${new Date().toLocaleDateString()}`;
+      const reportData = {
+        title: reportTitle,
+        summary: `Report with ${selected.length} selected articles about ${selectedTopic}`,
+        key_points: selected.slice(0, 5).map(a => a.title),
+        articles: selected.map((a, idx) => ({
+          number: idx + 1,
+          title: a.title,
+          source: a.source,
+          date: new Date(a.published_at).toLocaleDateString(),
+          signal: a.signal_strength?.toLowerCase(),
+          relevance: a.relevance,
+          url: a.url,
+          summary: a.summary,
+        })),
+        funding_count: 0,
+      };
+
+      const saveResponse = await saveReport(reportData);
+
+      // Reset
+      setShowReportModal(false);
+      setSelectedArticles(new Set());
+      setReportFormat("md");
+    } catch (err) {
+      setError(`Failed to save report: ${err.message}`);
+      console.error(err);
+    }
+  };
+
+  // Download report
+  const handleDownloadReport = async () => {
+    if (selectedArticles.size === 0) {
+      setError("Please select at least one article");
+      return;
+    }
+
+    const selected = articles.filter(a => selectedArticles.has(a.id));
+
+    // Create markdown format
+    let markdownContent = `# AI Watch Report\n\nGenerated: ${new Date().toLocaleString()}\n\n`;
+    
+    selected.forEach((article, idx) => {
+      markdownContent += `## ${idx + 1}. ${article.title}\n\n`;
+      markdownContent += `**Source:** ${article.source}\n`;
+      markdownContent += `**Signal:** ${article.signal_strength}\n`;
+      markdownContent += `**Relevance:** ${article.relevance}/10\n`;
+      markdownContent += `**Published:** ${new Date(article.published_at).toLocaleDateString()}\n`;
+      markdownContent += `**URL:** ${article.url || "No URL available"}\n\n`;
+      markdownContent += `${article.summary || "Summary not available"}\n\n`;
+      markdownContent += `---\n\n`;
+    });
+
+    try {
+      if (reportFormat === "pdf") {
       // Generate actual PDF using jsPDF
       try {
         const pdf = new jsPDF({
@@ -374,11 +469,10 @@ export default function Explore() {
       element.click();
       document.body.removeChild(element);
     }
-
-    // Reset
-    setShowReportModal(false);
-    setSelectedArticles(new Set());
-    setReportFormat("md");
+    } catch (err) {
+      setError(`Failed to download report: ${err.message}`);
+      console.error(err);
+    }
   };
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
@@ -531,11 +625,72 @@ export default function Explore() {
       {loading && (
         <div style={{
           textAlign: "center",
-          padding: "40px 20px",
+          padding: "60px 40px",
           fontSize: 12,
           color: B.gray500,
         }}>
-          Loading articles...
+          <div style={{ marginBottom: 20 }}>
+            <div style={{
+              width: 40,
+              height: 40,
+              margin: "0 auto 16px",
+              border: `3px solid ${B.gray200}`,
+              borderTop: `3px solid ${B.purple}`,
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+            }} />
+            <style>{`
+              @keyframes spin {
+                to { transform: rotate(360deg); }
+              }
+            `}</style>
+            <div style={{ fontSize: 14, fontWeight: 700, color: B.gray900, marginBottom: 8 }}>
+              Loading articles...
+            </div>
+            <div style={{ fontSize: 11, color: B.gray400, lineHeight: 1.6, marginBottom: 16 }}>
+              Fetching intelligence from NewsAPI, Google News & Perplexity<br/>
+              This typically takes 30-60 seconds
+            </div>
+            <div style={{ fontSize: 10, color: B.gray300, fontStyle: "italic" }}>
+              Keep this page open - articles will appear as they load
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── NO DATA STATE ── */}
+      {!loading && articles.length === 0 && (
+        <div style={{
+          textAlign: "center",
+          padding: "60px 40px",
+          background: B.gray50,
+          border: `1px solid ${B.gray100}`,
+          borderRadius: 4,
+          marginBottom: 24,
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: B.gray900, marginBottom: 8 }}>
+            No articles yet
+          </div>
+          <div style={{ fontSize: 12, color: B.gray500, marginBottom: 24, lineHeight: 1.6 }}>
+            Click "Generate New Data →" above to fetch the latest tech news from NewsAPI, Google News, and Perplexity across all sectors.
+          </div>
+          <button
+            onClick={handleIngest}
+            disabled={loading}
+            style={{
+              background: B.purple,
+              color: B.white,
+              border: "none",
+              padding: "10px 24px",
+              borderRadius: 2,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+            }}>
+            🚀 Generate Articles Now
+          </button>
         </div>
       )}
 
@@ -872,7 +1027,7 @@ export default function Explore() {
                   style={{
                     flex: 1,
                     padding: "12px",
-                    background: selectedArticles.size === 0 ? B.gray300 : B.green,
+                    background: selectedArticles.size === 0 ? B.gray300 : B.purple,
                     color: B.white,
                     border: "none",
                     borderRadius: 4,
@@ -881,7 +1036,24 @@ export default function Explore() {
                     fontWeight: 600,
                   }}
                 >
-                  ✓ Generate Report
+                  💾 Save Report
+                </button>
+                <button
+                  onClick={handleDownloadReport}
+                  disabled={selectedArticles.size === 0}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    background: selectedArticles.size === 0 ? B.gray300 : B.purple,
+                    color: B.white,
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: selectedArticles.size === 0 ? "not-allowed" : "pointer",
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  ⬇️ Download
                 </button>
               </div>
             </div>

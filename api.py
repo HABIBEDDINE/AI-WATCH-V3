@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import List, Optional, Dict, Tuple
@@ -417,146 +417,8 @@ def get_top_sectors():
 
 
 # Mock reports data
-MOCK_REPORTS = [
-    {
-        "id": "1",
-        "title": "AI Intelligence Report - Week of Mar 10, 2026",
-        "generated_date": "2026-03-16T14:22:00Z",
-        "article_count": 12,
-        "funding_count": 3,
-        "summary": "This week marked significant advances in enterprise AI adoption, with major corporations deploying autonomous agents across supply chains. Patent activity surged 45% year-over-year for AI-hardware integration, while regulatory frameworks solidified with EU AI Act enforcement timelines confirmed. Three major funding rounds totaling $1.2B were announced in autonomous systems, indicating strong market confidence.",
-        "key_points": [
-            "Agentic AI systems gaining adoption in enterprise supply chain management",
-            "Patent filings for LiDAR + Gen AI synthesis increased 45% YoY",
-            "EU AI Act enforcement timeline confirmed for Q3 2026",
-            "Three major funding rounds announced in autonomous systems space",
-            "Regulatory compliance tools emerging as fastest-growing market segment"
-        ],
-        "recommendations": [
-            "Begin AI readiness assessment within next 30 days",
-            "Establish data governance framework for compliance",
-            "Evaluate autonomous agent solutions for supply chain optimization"
-        ],
-        "articles": [
-            {
-                "id": 1,
-                "number": "1",
-                "title": "Toyota deploys Agentic AI for autonomous supply chain",
-                "source": "TechCrunch",
-                "date": "2026-03-15",
-                "signal": "strong",
-                "relevance": 9,
-                "industry": "Automotive",
-                "summary": "Toyota deployed autonomous AI agent network managing 340+ suppliers globally, achieving 23% cost reduction and cutting decision latency from 4 hours to 8 minutes.",
-                "url": "https://techcrunch.com/2026/03/15/toyota-ai-supply-chain/"
-            },
-            {
-                "id": 2,
-                "number": "2",
-                "title": "EU AI Act enforcement begins Q3 as tech giants prepare compliance",
-                "source": "Reuters",
-                "date": "2026-03-14",
-                "signal": "strong",
-                "relevance": 8,
-                "industry": "Regulatory",
-                "summary": "European regulatory bodies confirm Q3 2026 enforcement date for the comprehensive AI Act, requiring all vendors to implement risk classification and audit frameworks.",
-                "url": "https://reuters.com/2026/03/14/eu-ai-act-enforcement/"
-            },
-            {
-                "id": 3,
-                "number": "3",
-                "title": "LiDAR-Gen AI patent filings surge 45% in Q1 2026",
-                "source": "WIPO Patent Review",
-                "date": "2026-03-10",
-                "signal": "strong",
-                "relevance": 7,
-                "industry": "Autonomous Systems",
-                "summary": "World Intellectual Property Organization reports unprecedented surge in combined LiDAR sensor and generative AI patent applications, signaling major innovation in autonomous vehicle perception.",
-                "url": "https://wipo.org/2026/03/10/patent-trends/"
-            }
-        ]
-    },
-    {
-        "id": "2",
-        "title": "Strategic Intelligence Brief - Fintech & Payments",
-        "generated_date": "2026-03-15T09:45:00Z",
-        "article_count": 8,
-        "funding_count": 2,
-        "summary": "The fintech sector experienced rapid AI integration with fraud detection systems reducing transaction failures by 40%. European sovereign AI initiatives are reshaping the competitive landscape, while payment processing infrastructure continues to advance toward sub-millisecond latency goals. Market consolidation continues as major players acquire specialized AI providers.",
-        "key_points": [
-            "Real-time fraud detection AI reducing transaction failures by 40%",
-            "European LLM regulation driving sovereign AI adoption",
-            "Payment processing latency down to sub-millisecond levels",
-            "Cross-border payment settlement accelerated with AI routing",
-            "Compliance cost reduction of 35% through automated monitoring"
-        ],
-        "recommendations": [
-            "Implement advanced fraud detection systems immediately",
-            "Prepare for sovereign AI infrastructure requirements in EU markets",
-            "Invest in latency optimization for payment infrastructure"
-        ],
-        "articles": [
-            {
-                "id": 4,
-                "number": "1",
-                "title": "Stripe launches AI fraud detection system reducing false positives by 60%",
-                "source": "VentureBeat",
-                "date": "2026-03-13",
-                "signal": "strong",
-                "relevance": 9,
-                "industry": "Fintech",
-                "summary": "Stripe announced breakthrough AI model for real-time fraud detection, reducing false positive rates to near-zero while catching 99.8% of fraudulent transactions.",
-                "url": "https://venturebeat.com/2026/03/13/stripe-ai-fraud/"
-            },
-            {
-                "id": 5,
-                "number": "2",
-                "title": "European sovereign AI initiative launched - €2B investment",
-                "source": "EU Commission Press",
-                "date": "2026-03-12",
-                "signal": "strong",
-                "relevance": 8,
-                "industry": "Policy",
-                "summary": "European Commission announces €2 billion investment in indigenous AI development to reduce technology dependence and support fintech compliance with new regulatory frameworks.",
-                "url": "https://ec.europa.eu/2026/03/12/sovereign-ai-initiative/"
-            }
-        ]
-    },
-    {
-        "id": "3",
-        "title": "Market Deep Dive - Enterprise AI Adoption 2026",
-        "generated_date": "2026-03-14T16:30:00Z",
-        "article_count": 15,
-        "funding_count": 5,
-        "summary": "Enterprise AI adoption accelerated dramatically in Q1 2026, with Fortune 500 companies allocating average 18% increase in AI budgets. Autonomous agents proved most effective in operational tasks, while concerns about regulation and data privacy remain top challenges. Market consolidation continues with mega-deals reshaping the competitive landscape.",
-        "key_points": [
-            "Fortune 500 average AI budget increase: 18% QoQ",
-            "Autonomous agents approved for 45% of operational workflows",
-            "Data privacy concerns cited by 73% of enterprises",
-            "Hybrid AI-human teams showing 32% productivity gains",
-            "ROI realization timeline shortened to 8-12 months on average"
-        ],
-        "recommendations": [
-            "Establish clear AI governance and risk management frameworks",
-            "Invest in hybrid AI-human team training programs",
-            "Plan for 24-month AI transformation roadmap"
-        ],
-        "articles": [
-            {
-                "id": 6,
-                "number": "1",
-                "title": "Fortune 500 AI spending surges: average 18% increase confirmed",
-                "source": "McKinsey & Company",
-                "date": "2026-03-11",
-                "signal": "strong",
-                "relevance": 9,
-                "industry": "Enterprise",
-                "summary": "McKinsey's latest enterprise AI survey confirms sustained momentum in AI investments with Fortune 500 companies committing record budgets to autonomous systems and decision support platforms.",
-                "url": "https://mckinsey.com/2026/03/11/fortune-500-ai-spending/"
-            }
-        ]
-    }
-]
+MOCK_REPORTS = []  # Reports are now saved via POST /api/reports endpoint
+
 
 
 @app.get("/api/reports")
@@ -586,67 +448,133 @@ def get_report_detail(report_id: str):
     return {"error": "Report not found"}, 404
 
 
+@app.post("/api/reports")
+def save_report(report_data: dict):
+    """Save a new report from Explore page."""
+    import uuid
+    from datetime import datetime
+    
+    # Generate unique ID and timestamp
+    report_id = str(uuid.uuid4())
+    generated_date = datetime.now().isoformat()
+    
+    # Create report object
+    report = {
+        "id": report_id,
+        "title": report_data.get("title", "Untitled Report"),
+        "generated_date": generated_date,
+        "article_count": len(report_data.get("articles", [])),
+        "funding_count": report_data.get("funding_count", 0),
+        "summary": report_data.get("summary", ""),
+        "key_points": report_data.get("key_points", []),
+        "articles": report_data.get("articles", []),
+    }
+    
+    # Save to list
+    MOCK_REPORTS.append(report)
+    
+    return {
+        "status": "success",
+        "report_id": report_id,
+        "message": "Report saved successfully. Check Reports page to view.",
+    }
+
+
+@app.delete("/api/reports/{report_id}")
+def delete_report(report_id: str):
+    """Delete a report."""
+    global MOCK_REPORTS
+    
+    for i, report in enumerate(MOCK_REPORTS):
+        if report.get('id') == report_id:
+            MOCK_REPORTS.pop(i)
+            return {"status": "success", "message": "Report deleted"}
+    
+    return {"error": "Report not found"}, 404
+
+
+def _perform_ingestion(topic: Optional[str] = None):
+    """Background task to perform actual ingestion."""
+    from ingestion import run_ingestion, PRESET_SECTORS
+    import logging
+    import traceback
+    
+    logger = logging.getLogger(__name__)
+    
+    global _articles_cache, _last_ingest_time
+    
+    try:
+        logger.info(f"🚀 Starting background ingestion for topic: {topic or 'ALL'}")
+        
+        results = []
+        
+        if topic:
+            # Ingest specific topic
+            if topic not in PRESET_SECTORS:
+                logger.error(f"❌ Unknown topic: {topic}")
+                return
+            
+            logger.info(f"📡 Fetching articles for topic: {topic}")
+            try:
+                articles = run_ingestion(topic=topic, limit=20)
+                logger.info(f"✓ Got {len(articles)} articles for {topic}")
+                results.extend(articles)
+            except Exception as e:
+                logger.error(f"❌ Error fetching {topic}: {e}", exc_info=True)
+                raise
+        else:
+            # Ingest all 6 topics
+            logger.info(f"📡 Fetching articles for all 6 topics...")
+            for t in PRESET_SECTORS.keys():
+                try:
+                    logger.info(f"  → Fetching {t}...")
+                    articles = run_ingestion(topic=t, limit=20)
+                    logger.info(f"  ✓ Got {len(articles)} articles for {t}")
+                    results.extend(articles)
+                except Exception as e:
+                    logger.warning(f"  ⚠ Error fetching {t}: {e}")
+                    # Continue with other topics even if one fails
+                    continue
+        
+        # Update cache
+        _articles_cache.clear()
+        _articles_cache.extend(results)
+        _last_ingest_time = datetime.now().isoformat()
+        
+        logger.info(f"✅ Background ingestion complete. Total articles: {len(results)}")
+        
+    except Exception as e:
+        logger.error(f"❌ Background ingestion error: {e}")
+        logger.error(traceback.format_exc())
+
+
 @app.post("/api/ingest")
-def trigger_ingest(topic: Optional[str] = Query(None)):
+def trigger_ingest(background_tasks: BackgroundTasks, topic: Optional[str] = Query(None)):
     """
     Manually trigger data ingestion from NEWS_API and/or PERPLEXITY.
+    
+    Returns immediately with status, while actual ingestion happens in background.
     
     Query params:
         - topic: Specific topic to ingest (AI, Fintech, etc.)
                  If not specified, ingests all 6 topics
     
     Behavior:
-        1. CLEARS existing cache
-        2. Fetches fresh data from NEWS_API for specified topic(s)
+        1. Returns success immediately
+        2. Fetches fresh data from NEWS_API for specified topic(s) in background
         3. Processes articles through summarizer
-        4. Returns new articles count and timestamp
+        4. Updates cache when complete
     """
-    from ingestion import run_ingestion, PRESET_SECTORS
-    import logging
     
-    logger = logging.getLogger(__name__)
+    # Add background task
+    background_tasks.add_task(_perform_ingestion, topic)
     
-    global _articles_cache, _last_ingest_time
-    
-    results = []
-    
-    try:
-        # CLEAR existing cache to replace with fresh data
-        _articles_cache.clear()
-        logger.info(f"🔄 Cleared cache. Fetching fresh data from NEWS_API...")
-        
-        if topic:
-            # Ingest specific topic
-            if topic not in PRESET_SECTORS:
-                return {"error": f"Unknown topic: {topic}"}, 400
-            
-            logger.info(f"📡 Fetching articles for topic: {topic}")
-            articles = run_ingestion(topic=topic, limit=20)
-            results.extend(articles)
-            _articles_cache.extend(articles)
-            
-        else:
-            # Ingest all 6 topics
-            logger.info(f"📡 Fetching articles for all 6 topics...")
-            for t in PRESET_SECTORS.keys():
-                articles = run_ingestion(topic=t, limit=20)
-                results.extend(articles)
-                _articles_cache.extend(articles)
-        
-        _last_ingest_time = datetime.now().isoformat()
-        
-        logger.info(f"✅ Ingest complete. Total articles: {len(results)}")
-        
-        return {
-            "status": "success",
-            "count": len(results),
-            "timestamp": _last_ingest_time,
-            "message": f"Fetched {len(results)} fresh articles from NEWS_API"
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Ingestion error: {e}", exc_info=True)
-        return {"error": str(e)}, 500
+    return {
+        "status": "started",
+        "message": "Starting article ingestion in background. This may take 30-60 seconds.",
+        "timestamp": datetime.now().isoformat(),
+        "tip": "The articles will appear automatically once loaded. Keep the page open.",
+    }
 
 
 @app.get("/api/funding")

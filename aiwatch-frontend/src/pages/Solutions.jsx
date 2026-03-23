@@ -26,39 +26,198 @@ const B = {
 const SOLUTIONS = [
   {
     id: 1,
-    title: "AI Readiness Assessment",
-    description: "Full AI maturity evaluation across data, infra & governance",
-    fit: "Critical",
-    fitColor: B.red,
-    fitBg: B.redLight,
-    score: 96,
-    timeline: "1-3 weeks",
-    tag: "Quick Start",
-    tagColor: B.red,
+    title: "Assessment Advisor",
+    description: "Comprehensive evaluation of data & AI landscape with strategy, prioritization & alignment to standards",
+    fit: "High",
+    fitColor: B.amber,
+    fitBg: B.amberLight,
+    score: 94,
+    timeline: "2-3 weeks",
+    tag: "MVP",
+    tagColor: B.amber,
+    ipmStage: "Delivery",
   },
   {
     id: 2,
-    title: "Agentic AI Accelerator",
-    description: "Deploy autonomous workflows for supply chain operations",
+    title: "Data Health",
+    description: "End-to-end platform for data quality with automated validation, monitoring & compliance",
+    fit: "High",
+    fitColor: B.amber,
+    fitBg: B.amberLight,
+    score: 92,
+    timeline: "3-4 weeks",
+    tag: "MVP",
+    tagColor: B.amber,
+    ipmStage: "Delivery",
+  },
+  {
+    id: 3,
+    title: "Intelligent Analytics",
+    description: "Transform raw data into actionable insights using ML, NLP & advanced statistical models",
     fit: "High",
     fitColor: B.amber,
     fitBg: B.amberLight,
     score: 90,
-    timeline: "1-2 months",
-    tag: "Competitive Edge",
+    timeline: "4-6 weeks",
+    tag: "MVP",
     tagColor: B.amber,
+    ipmStage: "Delivery",
   },
   {
-    id: 3,
+    id: 4,
+    title: "ROI Simulator",
+    description: "Measure & communicate business value of data & AI investments with financial models",
+    fit: "High",
+    fitColor: B.amber,
+    fitBg: B.amberLight,
+    score: 88,
+    timeline: "2-3 weeks",
+    tag: "MVP",
+    tagColor: B.amber,
+    ipmStage: "Delivery",
+  },
+  {
+    id: 5,
     title: "AI Use Case Radar",
-    description: "Continuous sector-specific AI trend scanning & alerting",
+    description: "Cross-industry intelligence tool that scans & prioritizes emerging AI trends and use cases",
     fit: "Strategic",
     fitColor: B.blue,
     fitBg: B.blueLight,
-    score: 78,
-    timeline: "2-3 weeks",
-    tag: "Ongoing",
+    score: 82,
+    timeline: "3-4 weeks",
+    tag: "MVP",
     tagColor: B.blue,
+    ipmStage: "Sourcing",
+  },
+  {
+    id: 6,
+    title: "Marketing Agents",
+    description: "AI agents orchestration that automates marketing tasks like segmentation & personalized content",
+    fit: "Strategic",
+    fitColor: B.blue,
+    fitBg: B.blueLight,
+    score: 85,
+    timeline: "6-8 weeks",
+    tag: "MVP",
+    tagColor: B.blue,
+    ipmStage: "Delivery",
+  },
+  {
+    id: 7,
+    title: "Incidents Management",
+    description: "Detect, manage & resolve technical incidents with AI anomaly detection & root cause analysis",
+    fit: "Strategic",
+    fitColor: B.blue,
+    fitBg: B.blueLight,
+    score: 87,
+    timeline: "4-6 weeks",
+    tag: "MVP",
+    tagColor: B.blue,
+    ipmStage: "Delivery",
+  },
+  {
+    id: 8,
+    title: "AI Workbench",
+    description: "Modular architecture to build, manage & scale agent-based AI systems powered by LLMs",
+    fit: "Strategic",
+    fitColor: B.blue,
+    fitBg: B.blueLight,
+    score: 80,
+    timeline: "8-12 weeks",
+    tag: "Pilot",
+    tagColor: B.blue,
+    ipmStage: "Sourcing",
+  },
+  {
+    id: 9,
+    title: "Sandbox AI",
+    description: "Controlled environment to test AI models safely with limited access & risk analysis",
+    fit: "Strategic",
+    fitColor: B.blue,
+    fitBg: B.blueLight,
+    score: 84,
+    timeline: "2-3 weeks",
+    tag: "MVP",
+    tagColor: B.blue,
+    ipmStage: "Qualification",
+  },
+  {
+    id: 10,
+    title: "AI Watch",
+    description: "Strategic intelligence platform analyzing tech trends, startups & innovations for insights",
+    fit: "Strategic",
+    fitColor: B.blue,
+    fitBg: B.blueLight,
+    score: 86,
+    timeline: "4-6 weeks",
+    tag: "MVP",
+    tagColor: B.blue,
+    ipmStage: "Sourcing",
+  },
+  {
+    id: 11,
+    title: "AO Handler",
+    description: "Intelligent solution discovering tenders, evaluating eligibility & auto-generating proposals",
+    fit: "High",
+    fitColor: B.amber,
+    fitBg: B.amberLight,
+    score: 79,
+    timeline: "6-8 weeks",
+    tag: "Prototype",
+    tagColor: B.amber,
+    ipmStage: "Delivery",
+  },
+  {
+    id: 12,
+    title: "StartUp Connect AI",
+    description: "AI-powered engine that discovers startups & matches them to business needs",
+    fit: "Emerging",
+    fitColor: B.purple,
+    fitBg: B.purplePale,
+    score: 78,
+    timeline: "4-6 weeks",
+    tag: "MVP",
+    tagColor: B.purple,
+    ipmStage: "Sourcing",
+  },
+  {
+    id: 13,
+    title: "POC Workflow Tool",
+    description: "AI platform that structures & manages the innovation cycle from needs to POC decisions",
+    fit: "Emerging",
+    fitColor: B.purple,
+    fitBg: B.purplePale,
+    score: 77,
+    timeline: "4-6 weeks",
+    tag: "MVP",
+    tagColor: B.purple,
+    ipmStage: "Sourcing",
+  },
+  {
+    id: 14,
+    title: "HR Assistant",
+    description: "Conversational AI assistant that manages inquiries, integrates with ERP/CRM systems",
+    fit: "Strategic",
+    fitColor: B.blue,
+    fitBg: B.blueLight,
+    score: 72,
+    timeline: "6-8 weeks",
+    tag: "Pilot",
+    tagColor: B.blue,
+    ipmStage: "Sourcing",
+  },
+  {
+    id: 15,
+    title: "AI Implementation Framework",
+    description: "Scalable, responsible & business-aligned approach to developing & deploying AI/ML solutions",
+    fit: "Strategic",
+    fitColor: B.blue,
+    fitBg: B.blueLight,
+    score: 81,
+    timeline: "8-12 weeks",
+    tag: "MVP",
+    tagColor: B.blue,
+    ipmStage: "Sourcing",
   },
 ];
 
@@ -74,11 +233,14 @@ function SolutionCard({ solution }) {
       }}
     >
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, color: B.gray900, marginBottom: 4 }}>
             {solution.title}
           </h3>
+          <span style={{ fontSize: 10, fontWeight: 600, color: B.blue, letterSpacing: 0.5, textTransform: "uppercase" }}>
+            📋 {solution.ipmStage}
+          </span>
         </div>
         <span
           style={{
@@ -123,7 +285,7 @@ function SolutionCard({ solution }) {
       </div>
 
       {/* Footer */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <span style={{ fontSize: 11, color: B.gray400, fontWeight: 600 }}>
           ⏱ {solution.timeline}
         </span>
@@ -139,6 +301,32 @@ function SolutionCard({ solution }) {
           {solution.tag}
         </span>
       </div>
+
+      {/* More Information Button */}
+      <button
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          background: B.gray50,
+          border: `1px solid ${B.gray200}`,
+          borderRadius: 2,
+          fontSize: 12,
+          fontWeight: 600,
+          color: B.purple,
+          cursor: "pointer",
+          transition: "all 0.2s",
+        }}
+        onMouseEnter={e => {
+          e.target.style.background = B.purple;
+          e.target.style.color = B.white;
+        }}
+        onMouseLeave={e => {
+          e.target.style.background = B.gray50;
+          e.target.style.color = B.purple;
+        }}
+      >
+        Learn More →
+      </button>
     </div>
   );
 }

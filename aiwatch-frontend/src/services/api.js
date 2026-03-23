@@ -49,9 +49,18 @@ async function request(path, options = {}) {
       clearTimeout(timeoutId);
       lastError = error;
 
-      // If it's an abort error and NOT a timeout, don't retry (likely component unmount)
-      if (error.name === "AbortError" && !isTimeoutAbort) {
-        throw error;
+      console.warn(`Request attempt ${attempt + 1} failed:`, error.message);
+
+      // Only retry on timeout, not on other AbortErrors (like component unmount)
+      if (error.name === "AbortError") {
+        if (isTimeoutAbort && attempt < retries) {
+          // It was a timeout, retry
+          await sleep(retryDelayMs * (attempt + 1));
+          continue;
+        } else if (!isTimeoutAbort) {
+          // It was an abort but not timeout (could be user navigation)
+          throw error;
+        }
       }
 
       if (attempt < retries) {
@@ -149,11 +158,29 @@ export async function getReport(reportId) {
   return request(`/api/reports/${reportId}`);
 }
 
+export async function saveReport(reportData) {
+  return request(`/api/reports`, {
+    method: "POST",
+    body: JSON.stringify(reportData),
+  });
+}
+
+export async function deleteReport(reportId) {
+  return request(`/api/reports/${reportId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function triggerIngest(topic) {
   const params = new URLSearchParams();
   if (topic) params.append("topic", topic);
 
-  return request(`/api/ingest?${params.toString()}`, { method: "POST" });
+  // Use longer timeout for ingest since it's a background operation
+  return request(`/api/ingest?${params.toString()}`, { 
+    method: "POST",
+    timeoutMs: 10000,  // 10 second timeout for ingest endpoint
+    retries: 1  // Only 1 retry for ingest
+  });
 }
 
 export async function exportArticlesCSV(topic, signal) {

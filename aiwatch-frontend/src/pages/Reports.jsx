@@ -1,110 +1,6 @@
 import { useState, useEffect } from "react";
-import { getReports, getReport } from "../services/api";
-
-// Print styles
-const printStyles = `
-  @media print {
-    body {
-      margin: 0;
-      padding: 0;
-      background: white;
-    }
-    
-    .report-print-container {
-      page-break-after: always;
-      padding: 40px;
-      color: #111111;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-    }
-    
-    .report-header {
-      border-bottom: 3px solid #6B2C94;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
-    }
-    
-    .report-title {
-      font-size: 28px;
-      font-weight: 800;
-      color: #111111;
-      margin: 0 0 10px 0;
-    }
-    
-    .report-meta {
-      font-size: 12px;
-      color: #666666;
-      margin-bottom: 15px;
-    }
-    
-    .report-section {
-      margin-bottom: 30px;
-    }
-    
-    .report-section-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #111111;
-      margin-bottom: 15px;
-      border-left: 4px solid #6B2C94;
-      padding-left: 12px;
-    }
-    
-    .article-item {
-      page-break-inside: avoid;
-      margin-bottom: 20px;
-      padding: 15px;
-      border: 1px solid #d0d0d0;
-      border-radius: 4px;
-      background: #fafafa;
-    }
-    
-    .article-number {
-      display: inline-block;
-      background: #6B2C94;
-      color: white;
-      padding: 4px 10px;
-      border-radius: 3px;
-      font-weight: 700;
-      margin-right: 10px;
-      font-size: 11px;
-    }
-    
-    .article-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: #111111;
-      margin: 10px 0;
-    }
-    
-    .article-meta {
-      font-size: 11px;
-      color: #666666;
-      margin-bottom: 10px;
-    }
-    
-    .article-url {
-      word-break: break-all;
-      font-size: 10px;
-      color: #6B2C94;
-      font-weight: 600;
-      margin-top: 8px;
-    }
-    
-    ul {
-      margin: 0;
-      padding-left: 25px;
-    }
-    
-    li {
-      margin-bottom: 8px;
-      color: #444444;
-    }
-    
-    button, .report-controls {
-      display: none;
-    }
-  }
-`;
+import { getReports, getReport, deleteReport } from "../services/api";
+import { jsPDF } from "jspdf";
 
 const B = {
   purple: "#6B2C94",
@@ -128,7 +24,7 @@ const B = {
   darkBg: "#0a0a0a",
 };
 
-function ReportsList({ onSelectReport }) {
+function ReportsList({ onSelectReport, refreshKey }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -137,13 +33,15 @@ function ReportsList({ onSelectReport }) {
     setLoading(true);
     setError(null);
     getReports(1, 50)
-      .then(response => setReports(response.items || []))
+      .then(response => {
+        setReports(response.items || []);
+      })
       .catch(err => {
         setError(err.message);
         setReports([]);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -156,7 +54,7 @@ function ReportsList({ onSelectReport }) {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, color: B.gray900, marginBottom: 4 }}>Recent Reports</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 800, color: B.gray900, marginBottom: 4 }}>Available Reports</h2>
         <p style={{ fontSize: 11, color: B.gray500 }}>{reports.length} reports available</p>
       </div>
 
@@ -178,7 +76,10 @@ function ReportsList({ onSelectReport }) {
         {loading ? (
           <div style={{ padding: "20px", textAlign: "center", color: B.gray400 }}>Loading reports...</div>
         ) : reports.length === 0 ? (
-          <div style={{ padding: "20px", textAlign: "center", color: B.gray400 }}>No reports found</div>
+          <div style={{ padding: "40px 20px", textAlign: "center", color: B.gray400 }}>
+            <p style={{ fontSize: 14, marginBottom: 12 }}>No reports available yet</p>
+            <p style={{ fontSize: 12 }}>Go to Explore page and click "Generate Reports →" to create one</p>
+          </div>
         ) : (
           reports.map(report => (
             <div
@@ -192,10 +93,15 @@ function ReportsList({ onSelectReport }) {
                 cursor: "pointer",
                 transition: "all 0.2s",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-                ":hover": { borderColor: B.purple, boxShadow: "0 2px 8px rgba(107, 44, 148, 0.15)" },
               }}
-              onMouseEnter={(e) => e.currentTarget.style.borderColor = B.purple}
-              onMouseLeave={(e) => e.currentTarget.style.borderColor = B.gray100}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = B.purple;
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(107, 44, 148, 0.15)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = B.gray100;
+                e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
+              }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                 <div>
@@ -240,10 +146,11 @@ function ReportsList({ onSelectReport }) {
   );
 }
 
-function ReportDetail({ reportId, onClose }) {
+function ReportDetail({ reportId, onClose, onDelete }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -254,12 +161,168 @@ function ReportDetail({ reportId, onClose }) {
       .finally(() => setLoading(false));
   }, [reportId]);
 
+  const handleDelete = async () => {
+    if (window.confirm(`Delete report "${report?.title}"? This action cannot be undone.`)) {
+      setDeleting(true);
+      try {
+        await deleteReport(reportId);
+        // Trigger callback to refresh list and close detail
+        onDelete(reportId);
+      } catch (err) {
+        setError("Failed to delete report: " + err.message);
+      } finally {
+        setDeleting(false);
+      }
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
     });
+  };
+
+  const handleGeneratePDF = async () => {
+    try {
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const maxWidth = pageWidth - (margin * 2);
+      let yPosition = margin;
+
+      // Title
+      pdf.setFontSize(28);
+      pdf.setTextColor(107, 44, 148);
+      pdf.setFont(undefined, "bold");
+      pdf.text(report.title, margin, yPosition);
+      yPosition += 12;
+
+      // Date
+      pdf.setFontSize(11);
+      pdf.setTextColor(102, 102, 102);
+      pdf.setFont(undefined, "normal");
+      pdf.text(formatDate(report.generated_date || new Date()), margin, yPosition);
+      yPosition += 8;
+
+      // Divider
+      pdf.setDrawColor(107, 44, 148);
+      pdf.setLineWidth(0.5);
+      pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 12;
+
+      // Summary
+      if (report.summary) {
+        pdf.setFontSize(10);
+        pdf.setTextColor(68, 68, 68);
+        pdf.setFont(undefined, "bold");
+        pdf.text("Summary", margin, yPosition);
+        yPosition += 6;
+
+        pdf.setFont(undefined, "normal");
+        const summaryLines = pdf.splitTextToSize(report.summary, maxWidth);
+        pdf.text(summaryLines, margin, yPosition);
+        yPosition += summaryLines.length * 4 + 8;
+      }
+
+      // Key Findings
+      if (report.key_points && report.key_points.length > 0) {
+        if (yPosition > pageHeight - margin - 40) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+
+        pdf.setFontSize(10);
+        pdf.setTextColor(17, 17, 17);
+        pdf.setFont(undefined, "bold");
+        pdf.text("Key Findings", margin, yPosition);
+        yPosition += 8;
+
+        pdf.setFont(undefined, "normal");
+        pdf.setFontSize(9);
+        pdf.setTextColor(68, 68, 68);
+
+        report.key_points.forEach((point) => {
+          if (yPosition > pageHeight - margin - 20) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+          const pointLines = pdf.splitTextToSize("• " + point, maxWidth - 5);
+          pdf.text(pointLines, margin + 5, yPosition);
+          yPosition += pointLines.length * 4 + 2;
+        });
+        yPosition += 6;
+      }
+
+      // Articles
+      if (report.articles && report.articles.length > 0) {
+        if (yPosition > pageHeight - margin - 40) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+
+        pdf.setFontSize(10);
+        pdf.setTextColor(17, 17, 17);
+        pdf.setFont(undefined, "bold");
+        pdf.text("Articles & Sources", margin, yPosition);
+        yPosition += 10;
+
+        report.articles.forEach((article, idx) => {
+          if (yPosition > pageHeight - margin - 30) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+
+          // Article number and title
+          pdf.setFontSize(9);
+          pdf.setTextColor(17, 17, 17);
+          pdf.setFont(undefined, "bold");
+          const titleLines = pdf.splitTextToSize(`${article.number || idx + 1}. ${article.title}`, maxWidth);
+          pdf.text(titleLines, margin, yPosition);
+          yPosition += titleLines.length * 4 + 2;
+
+          // Metadata
+          pdf.setFontSize(8);
+          pdf.setTextColor(102, 102, 102);
+          pdf.setFont(undefined, "normal");
+          pdf.text(`${article.source} | ${article.date} | Signal: ${article.signal?.toUpperCase()} | Relevance: ${article.relevance}/10`, margin, yPosition);
+          yPosition += 5;
+
+          // Summary
+          if (article.summary) {
+            pdf.setFontSize(8);
+            pdf.setTextColor(68, 68, 68);
+            const summaryLines = pdf.splitTextToSize(article.summary, maxWidth);
+            pdf.text(summaryLines, margin, yPosition);
+            yPosition += summaryLines.length * 3.5 + 3;
+          }
+
+          // URL
+          if (article.url) {
+            pdf.setTextColor(107, 44, 148);
+            pdf.setFont(undefined, "bold");
+            const urlLines = pdf.splitTextToSize(`URL: ${article.url}`, maxWidth);
+            pdf.text(urlLines, margin, yPosition);
+            yPosition += urlLines.length * 3 + 6;
+          } else {
+            yPosition += 4;
+          }
+        });
+      }
+
+      // Save PDF
+      const filename = `${report.title.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(filename);
+    } catch (err) {
+      setError("Failed to generate PDF: " + err.message);
+    }
   };
 
   if (loading) {
@@ -309,6 +372,7 @@ function ReportDetail({ reportId, onClose }) {
             cursor: "pointer",
             fontSize: 12,
           }}
+          className="no-print"
         >
           ← Back
         </button>
@@ -328,7 +392,7 @@ function ReportDetail({ reportId, onClose }) {
         </div>
       </div>
 
-      {/* Body */}
+      {/* Body - Screen Display Only */}
       <div style={{ padding: "24px" }}>
         {/* Summary */}
         {report.summary && (
@@ -441,14 +505,14 @@ function ReportDetail({ reportId, onClose }) {
                 </div>
 
                 {/* Export/Print buttons */}
-                <div style={{ display: "flex", gap: 8, marginLeft: 12 }}>
+                <div style={{ display: "flex", gap: 8, marginLeft: 12, flexDirection: "column" }}>
                   <button
-                    onClick={() => window.print()}
+                    onClick={handleGeneratePDF}
                     style={{
                       padding: "8px 14px",
-                      background: B.gray50,
-                      border: `1px solid ${B.gray200}`,
-                      color: B.gray700,
+                      background: B.purple,
+                      border: `1px solid ${B.purple}`,
+                      color: B.white,
                       borderRadius: 4,
                       fontSize: 11,
                       fontWeight: 600,
@@ -456,17 +520,45 @@ function ReportDetail({ reportId, onClose }) {
                       transition: "all 0.2s",
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.background = B.purple;
-                      e.target.style.color = B.white;
-                      e.target.style.borderColor = B.purple;
+                      e.target.style.background = B.purpleDeep;
+                      e.target.style.borderColor = B.purpleDeep;
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.background = B.gray50;
-                      e.target.style.color = B.gray700;
-                      e.target.style.borderColor = B.gray200;
+                      e.target.style.background = B.purple;
+                      e.target.style.borderColor = B.purple;
                     }}
                   >
-                    🖨️ Print / PDF
+                    ⬇️ Download PDF
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    style={{
+                      padding: "8px 14px",
+                      background: "#fdf0ef",
+                      border: `1px solid #f5d4cc`,
+                      color: B.amber,
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: deleting ? "not-allowed" : "pointer",
+                      transition: "all 0.2s",
+                      opacity: deleting ? 0.6 : 1,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!deleting) {
+                        e.target.style.background = B.amber;
+                        e.target.style.color = B.white;
+                        e.target.style.borderColor = B.amber;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "#fdf0ef";
+                      e.target.style.color = B.amber;
+                      e.target.style.borderColor = "#f5d4cc";
+                    }}
+                  >
+                    {deleting ? "Deleting..." : "🗑️ Delete"}
                   </button>
                 </div>
               </div>
@@ -491,10 +583,16 @@ function ReportDetail({ reportId, onClose }) {
 
 export default function Reports() {
   const [selectedReportId, setSelectedReportId] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleReportDeleted = (reportId) => {
+    setSelectedReportId(null);
+    // Refresh the list by incrementing key
+    setRefreshKey(prev => prev + 1);
+  };
 
   return (
     <>
-      <style>{printStyles}</style>
       <div style={{ background: B.white, padding: "24px 28px", minHeight: "100vh" }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: B.gray900, marginBottom: 8 }}>Reports</h1>
@@ -505,9 +603,10 @@ export default function Reports() {
           <ReportDetail
             reportId={selectedReportId}
             onClose={() => setSelectedReportId(null)}
+            onDelete={handleReportDeleted}
           />
         ) : (
-          <ReportsList onSelectReport={setSelectedReportId} />
+          <ReportsList onSelectReport={setSelectedReportId} refreshKey={refreshKey} />
         )}
       </div>
     </>

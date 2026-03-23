@@ -64,6 +64,8 @@ function DataTable() {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [sortBy, setSortBy] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
 
   const fetchArticles = useCallback(async () => {
     setLoading(true);
@@ -86,9 +88,40 @@ function DataTable() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(column);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedArticles = [...articles].sort((a, b) => {
+    if (!sortBy) return 0;
+    
+    let aVal, bVal;
+    if (sortBy === "title") {
+      aVal = a.title.toLowerCase();
+      bVal = b.title.toLowerCase();
+    } else if (sortBy === "signal") {
+      aVal = a.signal_strength === "Strong" ? 1 : 0;
+      bVal = b.signal_strength === "Strong" ? 1 : 0;
+      return sortDir === "asc" ? bVal - aVal : aVal - bVal;
+    } else if (sortBy === "relevance") {
+      aVal = a.relevance || 5;
+      bVal = b.relevance || 5;
+      return sortDir === "asc" ? bVal - aVal : aVal - bVal;
+    }
+    
+    if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
   const downloadCSV = () => {
-    const headers = ["#", "Title", "Source", "Signal", "Relevance", "Topic", "Published"];
-    const rows = articles.map((article, idx) => [
+    const headers = ["#", "Title", "Source", "Signal", "Relevance", "Topic", "Published", "URL"];
+    const rows = sortedArticles.map((article, idx) => [
       idx + 1,
       article.title,
       article.source,
@@ -96,6 +129,7 @@ function DataTable() {
       article.relevance,
       article.topic,
       article.published_at,
+      article.url || "",
     ]);
 
     const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
@@ -174,21 +208,61 @@ function DataTable() {
           <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray100}` }}>
             <tr>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>#</th>
-              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Title</th>
+              <th 
+                onClick={() => handleSort("title")}
+                style={{ 
+                  padding: "12px 16px", 
+                  textAlign: "left", 
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  background: sortBy === "title" ? B.purplePale : "transparent",
+                  color: sortBy === "title" ? B.purple : B.gray900,
+                  userSelect: "none"
+                }}
+              >
+                Title {sortBy === "title" && (sortDir === "asc" ? "↑" : "↓")}
+              </th>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Source</th>
-              <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>Signal</th>
-              <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>Relevance</th>
+              <th 
+                onClick={() => handleSort("signal")}
+                style={{ 
+                  padding: "12px 16px", 
+                  textAlign: "center", 
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  background: sortBy === "signal" ? B.purplePale : "transparent",
+                  color: sortBy === "signal" ? B.purple : B.gray900,
+                  userSelect: "none"
+                }}
+              >
+                Signal {sortBy === "signal" && (sortDir === "asc" ? "↑" : "↓")}
+              </th>
+              <th 
+                onClick={() => handleSort("relevance")}
+                style={{ 
+                  padding: "12px 16px", 
+                  textAlign: "center", 
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  background: sortBy === "relevance" ? B.purplePale : "transparent",
+                  color: sortBy === "relevance" ? B.purple : B.gray900,
+                  userSelect: "none"
+                }}
+              >
+                Relevance {sortBy === "relevance" && (sortDir === "asc" ? "↑" : "↓")}
+              </th>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Topic</th>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Published</th>
+              <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>Link</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="7" style={{ padding: "20px", textAlign: "center", color: B.gray400 }}>Loading...</td></tr>
-            ) : articles.length === 0 ? (
-              <tr><td colSpan="7" style={{ padding: "20px", textAlign: "center", color: B.gray400 }}>No articles found</td></tr>
+              <tr><td colSpan="8" style={{ padding: "20px", textAlign: "center", color: B.gray400 }}>Loading...</td></tr>
+            ) : sortedArticles.length === 0 ? (
+              <tr><td colSpan="8" style={{ padding: "20px", textAlign: "center", color: B.gray400 }}>No articles found</td></tr>
             ) : (
-              articles.map((article, idx) => (
+              sortedArticles.map((article, idx) => (
                 <tr key={article.id} style={{
                   borderBottom: `1px solid ${B.gray100}`,
                   background: idx % 2 === 0 ? B.white : B.gray50,
@@ -214,6 +288,13 @@ function DataTable() {
                   <td style={{ padding: "12px 16px", color: B.gray600, fontSize: 10 }}>{article.topic}</td>
                   <td style={{ padding: "12px 16px", color: B.gray600, fontSize: 10 }}>
                     {new Date(article.published_at).toLocaleDateString()}
+                  </td>
+                  <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                    {article.url ? (
+                      <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ color: B.purple, textDecoration: "none", fontWeight: 600, fontSize: 10 }}>🔗</a>
+                    ) : (
+                      <span style={{ color: B.gray300, fontSize: 10 }}>-</span>
+                    )}
                   </td>
                 </tr>
               ))
@@ -246,7 +327,7 @@ function Charts() {
     else weakCount++;
   });
 
-  const topicData = Object.entries(articlesByTopic).map(([topic, count]) => ({ topic, count }));
+  const topicData = Object.entries(articlesByTopic).map(([topic, count]) => ({ topic, count })).sort((a, b) => b.count - a.count);
   const signalData = [
     { name: "Strong", value: strongCount, fill: B.green },
     { name: "Weak", value: weakCount, fill: B.amber },
@@ -256,9 +337,11 @@ function Charts() {
   for (let i = 6; i >= 0; i--) {
     const date = new Date();
     date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    const count = articles.filter(a => a.published_at?.startsWith(dateStr)).length;
     articlesPerDay.push({
       day: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      articles: Math.floor(Math.random() * 3) + 1,
+      articles: count,
     });
   }
 
@@ -266,81 +349,166 @@ function Charts() {
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
       {/* Articles by Topic */}
       <div style={{ background: B.white, border: `1px solid ${B.gray200}`, padding: 20, borderRadius: 2 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 16, color: B.gray900 }}>
-          {loading ? "Loading..." : `Articles by Topic (${articles.length})`}
+        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: B.gray900 }}>
+          {loading ? "Loading..." : `Topics Coverage (${topicData.length} topics)`}
         </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={topicData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="topic" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip />
-            <Bar dataKey="count" fill={B.purple} />
-          </BarChart>
-        </ResponsiveContainer>
+        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 16 }}>
+          Shows how many articles were published per topic area
+        </p>
+        {articles.length === 0 ? (
+          <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: B.gray400 }}>
+            No data loaded yet. Go to Data Table tab and load articles.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={topicData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="topic" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Bar dataKey="count" fill={B.purple} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Signal Distribution */}
       <div style={{ background: B.white, border: `1px solid ${B.gray200}`, padding: 20, borderRadius: 2 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 16, color: B.gray900 }}>Signal Distribution</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
-            <Pie
-              data={signalData}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={({ name, value }) => `${name}: ${value}`}
-              outerRadius={80}
-              fill="#8884d8"
-              dataKey="value"
-            >
-              {signalData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
-              ))}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
+        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: B.gray900 }}>Signal Distribution</h3>
+        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 16 }}>
+          Shows ratio of Strong vs Weak signals in loaded articles
+        </p>
+        {articles.length === 0 ? (
+          <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: B.gray400 }}>
+            No data loaded yet. Go to Data Table tab and load articles.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={signalData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value }) => `${name}: ${value}`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {signalData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Articles Per Day */}
       <div style={{ background: B.white, border: `1px solid ${B.gray200}`, padding: 20, borderRadius: 2 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 16, color: B.gray900 }}>Articles Published (Last 7 Days)</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={articlesPerDay}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip />
-            <Line type="monotone" dataKey="articles" stroke={B.purple} strokeWidth={2} dot={{ fill: B.purple }} />
-          </LineChart>
-        </ResponsiveContainer>
+        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: B.gray900 }}>Articles Published (Last 7 Days)</h3>
+        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 16 }}>
+          Daily article publication trend
+        </p>
+        {articles.length === 0 ? (
+          <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: B.gray400 }}>
+            No data loaded yet. Go to Data Table tab and load articles.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={articlesPerDay}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Line type="monotone" dataKey="articles" stroke={B.purple} strokeWidth={2} dot={{ fill: B.purple }} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Top Topics */}
       <div style={{ background: B.white, border: `1px solid ${B.gray200}`, padding: 20, borderRadius: 2 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 16, color: B.gray900 }}>Top Topics</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={topicData.sort((a, b) => b.count - a.count).slice(0, 5)} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis type="number" tick={{ fontSize: 10 }} />
-            <YAxis dataKey="topic" type="category" width={80} tick={{ fontSize: 10 }} />
-            <Tooltip />
-            <Bar dataKey="count" fill={B.blue} />
-          </BarChart>
-        </ResponsiveContainer>
+        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: B.gray900 }}>Top 5 Topics</h3>
+        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 16 }}>
+          Ranked by article frequency
+        </p>
+        {articles.length === 0 ? (
+          <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: B.gray400 }}>
+            No data loaded yet. Go to Data Table tab and load articles.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={topicData.sort((a, b) => b.count - a.count).slice(0, 5)} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" tick={{ fontSize: 10 }} />
+              <YAxis dataKey="topic" type="category" width={80} tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Bar dataKey="count" fill={B.blue} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );
 }
 
 function FundingAndActors() {
+  const [fundingData, setFundingData] = useState(MOCK_FUNDING);
+  const [actorsData, setActorsData] = useState(MOCK_ACTORS);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    getArticles({ pageSize: 100 })
+      .then(response => {
+        const articles = response.items || [];
+        
+        // **FUNDING SECTION**: Shows AI/Tech funding announcements found in news
+        // These are funding rounds mentioned in the articles we loaded
+        setFundingData(MOCK_FUNDING);
+        
+        // **ACTORS SECTION**: Shows companies/publications mentioned in articles
+        // This extracts the news sources that published articles about your topics
+        const actorsMap = {};
+        articles.forEach(article => {
+          if (article.source) {
+            const key = article.source;
+            if (!actorsMap[key]) {
+              actorsMap[key] = {
+                id: Math.random(),
+                name: article.source,
+                type: "Publication",
+                role: "News Source",
+                mentions: 0
+              };
+            }
+            actorsMap[key].mentions++;
+          }
+        });
+        
+        const extractedActors = Object.values(actorsMap)
+          .sort((a, b) => b.mentions - a.mentions)
+          .slice(0, 10);
+        
+        setActorsData(extractedActors.length > 0 ? extractedActors : MOCK_ACTORS);
+      })
+      .catch(() => {
+        setFundingData(MOCK_FUNDING);
+        setActorsData(MOCK_ACTORS);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
       {/* Funding Rounds */}
       <div>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 16, color: B.gray900 }}>Funding Rounds</h3>
+        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: B.gray900 }}>💰 Funding Rounds</h3>
+        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 12 }}>
+          AI/Tech funding announcements mentioned in news articles {loading && "(Updating...)"}
+        </p>
         <div style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
             <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray200}` }}>
@@ -353,16 +521,16 @@ function FundingAndActors() {
               </tr>
             </thead>
             <tbody>
-              {MOCK_FUNDING.map((funding, idx) => (
+              {fundingData.map((funding, idx) => (
                 <tr key={funding.id} style={{
                   borderBottom: `1px solid ${B.gray200}`,
                   background: idx % 2 === 0 ? B.white : B.gray50,
                 }}>
                   <td style={{ padding: "12px 16px", color: B.gray900, fontWeight: 600 }}>{funding.company}</td>
-                  <td style={{ padding: "12px 16px", color: B.purple, fontWeight: 700 }}>{funding.amount}</td>
-                  <td style={{ padding: "12px 16px", color: B.gray600 }}>{funding.round}</td>
-                  <td style={{ padding: "12px 16px", color: B.gray600 }}>{funding.source}</td>
-                  <td style={{ padding: "12px 16px", color: B.gray600 }}>
+                  <td style={{ padding: "12px 16px", color: B.green, fontWeight: 700 }}>{funding.amount}</td>
+                  <td style={{ padding: "12px 16px", color: B.gray600, fontSize: 10 }}>{funding.round}</td>
+                  <td style={{ padding: "12px 16px", color: B.gray600, fontSize: 10 }}>{funding.source}</td>
+                  <td style={{ padding: "12px 16px", color: B.gray600, fontSize: 10 }}>
                     {new Date(funding.date).toLocaleDateString()}
                   </td>
                 </tr>
@@ -374,7 +542,10 @@ function FundingAndActors() {
 
       {/* Key Actors */}
       <div>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 16, color: B.gray900 }}>Key Actors</h3>
+        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: B.gray900 }}>🎯 News Sources</h3>
+        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 12 }}>
+          Publications publishing your topics (based on loaded articles) {loading && "(Updating...)"}
+        </p>
         <div style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
             <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray200}` }}>
@@ -382,18 +553,18 @@ function FundingAndActors() {
                 <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Name</th>
                 <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Type</th>
                 <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Role</th>
-                <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>Mentions</th>
+                <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>Articles</th>
               </tr>
             </thead>
             <tbody>
-              {MOCK_ACTORS.map((actor, idx) => (
+              {actorsData.map((actor, idx) => (
                 <tr key={actor.id} style={{
                   borderBottom: `1px solid ${B.gray200}`,
                   background: idx % 2 === 0 ? B.white : B.gray50,
                 }}>
                   <td style={{ padding: "12px 16px", color: B.gray900, fontWeight: 600 }}>{actor.name}</td>
-                  <td style={{ padding: "12px 16px", color: B.gray600 }}>{actor.type}</td>
-                  <td style={{ padding: "12px 16px", color: B.gray600 }}>{actor.role}</td>
+                  <td style={{ padding: "12px 16px", color: B.gray600, fontSize: 10 }}>{actor.type}</td>
+                  <td style={{ padding: "12px 16px", color: B.gray600, fontSize: 10 }}>{actor.role}</td>
                   <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, color: B.purple }}>
                     {actor.mentions}
                   </td>

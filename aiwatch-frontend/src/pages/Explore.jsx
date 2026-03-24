@@ -172,6 +172,7 @@ export default function Explore() {
       });
       setArticles(response.items || []);
       setTotalCount(response.total || 0);
+      setCurrentPage(page);
     } catch (err) {
       setError(err.message);
       setArticles([]);
@@ -208,6 +209,8 @@ export default function Explore() {
     fetchArticles(page, itemsPerPage);
   };
 
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+
   // Handle ingest
   const handleIngest = async () => {
     try {
@@ -229,13 +232,14 @@ export default function Explore() {
           try {
             const articlesResponse = await getArticles({
               page: 1,
-              pageSize: itemsPerPage,
+              pageSize: 50,
             });
             
             if (articlesResponse.items && articlesResponse.items.length > 0) {
               // Articles found! Update state and clear interval
               setArticles(articlesResponse.items);
               setTotalCount(articlesResponse.total || 0);
+              setCurrentPage(1);
               clearInterval(pollInterval);
               setLoading(false);
               return;
@@ -475,7 +479,7 @@ export default function Explore() {
     }
   };
 
-  const totalPages = Math.ceil(totalCount / itemsPerPage);
+
 
   return (
     <div style={{ background: B.white, padding: "24px 28px", minHeight: "100%" }}>

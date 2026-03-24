@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
-import { getFeed, getRadar, getTrends, getHealth } from "./services/api";
+import { getFeed, getRadar, getHealth } from "./services/api";
 import Explore from "./pages/Explore";
 import Solutions from "./pages/Solutions";
-import Trends from "./pages/Trends";
 import DataPreview from "./pages/DataPreview";
 import Reports from "./pages/Reports";
 import Newsletter from "./pages/Newsletter";
-import RightPanel from "./components/RightPanel";
+import Matching from "./pages/Matching";
 
 const B = {
   purple:      "#6B2C94",
@@ -326,16 +325,6 @@ export default function AIWatchDXC() {
   const [feed,     setFeed]     = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [products, setProducts] = useState(PRODUCTS.cto);
-  const [trends,   setTrends]   = useState({
-    series: TRENDS_DATA.cto,
-    latest: TRENDS_DATA.cto[TRENDS_DATA.cto.length - 1],
-    delta: "+0%",
-    top_topics: [
-      { topic: "AI Intelligence", pct: 85, delta: "+9%" },
-      { topic: "Competitive Signals", pct: 70, delta: "+6%" },
-      { topic: "Market Monitoring", pct: 57, delta: "+3%" },
-    ],
-  });
   const [toasts, setToasts] = useState([]);
   const [health, setHealth] = useState({ status: "checking" });
   const [loadError, setLoadError] = useState("");
@@ -391,9 +380,8 @@ export default function AIWatchDXC() {
         setFeed(fallbackCombined);
       }
 
-      const [radarResult, trendsResult] = await Promise.allSettled([
+      const [radarResult] = await Promise.allSettled([
         getRadar(mainPersona, 4),
-        getTrends(mainPersona, 5),
       ]);
 
       if (radarResult.status === "fulfilled") {
@@ -402,28 +390,8 @@ export default function AIWatchDXC() {
         setProducts(PRODUCTS[mainPersona]);
       }
 
-      if (trendsResult.status === "fulfilled") {
-        setTrends({
-          series: trendsResult.value.series || TRENDS_DATA[mainPersona],
-          latest: trendsResult.value.latest ?? TRENDS_DATA[mainPersona][TRENDS_DATA[mainPersona].length - 1],
-          delta: trendsResult.value.delta || "+0%",
-          top_topics: trendsResult.value.top_topics || [],
-        });
-      } else {
-        setTrends({
-          series: TRENDS_DATA[mainPersona],
-          latest: TRENDS_DATA[mainPersona][TRENDS_DATA[mainPersona].length - 1],
-          delta: "+0%",
-          top_topics: [
-            { topic: "AI Intelligence", pct: 85, delta: "+9%" },
-            { topic: "Competitive Signals", pct: 70, delta: "+6%" },
-            { topic: "Market Monitoring", pct: 57, delta: "+3%" },
-          ],
-        });
-      }
-
       const hasFeedFailure = feedResults.some(r => r.status === "rejected");
-      const hasAuxFailure = [radarResult, trendsResult].some(r => r.status === "rejected");
+      const hasAuxFailure = radarResult.status === "rejected";
       if (hasFeedFailure) {
         setLoadError("Some backend APIs are slow or unavailable. Showing partial fallback data.");
         pushToast("Explore is using fallback data because feed APIs timed out.", "error");
@@ -489,7 +457,7 @@ export default function AIWatchDXC() {
   const navTabs = [
     { id:"feed",       label:"Explore",        path:"/" },
     { id:"radar",      label:"Solutions",      path:"/solutions" },
-    { id:"trends",     label:"Trends",         path:"/trends" },
+    { id:"matching",   label:"Matching",       path:"/matching" },
     { id:"data",       label:"Data Preview",   path:"/data-preview" },
     { id:"reports",    label:"Reports",        path:"/reports" },
     { id:"newsletter", label:"Newsletter",     path:"/newsletter" },
@@ -627,15 +595,13 @@ export default function AIWatchDXC() {
           <Routes>
             <Route path="/" element={<Explore />} />
             <Route path="/solutions" element={<Solutions />} />
-            <Route path="/trends" element={<Trends />} />
             <Route path="/data-preview" element={<DataPreview />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/newsletter" element={<Newsletter />} />
+            <Route path="/matching" element={<Matching />} />
           </Routes>
         </div>
 
-        {/* ── RIGHT PANEL ── */}
-        <RightPanel />
       </div>
     </div>
   );

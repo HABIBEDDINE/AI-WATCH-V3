@@ -192,8 +192,42 @@ export async function exportArticlesCSV(topic, signal) {
   window.open(url, "_blank");
 }
 
+export async function getFunding(page = 1, pageSize = 25) {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  return request(`/api/funding?${params.toString()}`);
+}
+
+export async function getActors(page = 1, pageSize = 25) {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  return request(`/api/actors?${params.toString()}`);
+}
+
 export async function getHealth() {
   return request("/health", { retries: 0, timeoutMs: 5000 });
+}
+
+export async function getNewsletterStatus() {
+  return request("/api/newsletter/status", { retries: 0, timeoutMs: 5000 });
+}
+
+export async function sendNewsletterNow(persona = "cto") {
+  const params = new URLSearchParams({ persona });
+  return request(`/api/newsletter/send?${params.toString()}`, { method: "POST", timeoutMs: 10000, retries: 0 });
+}
+
+export async function subscribeEmail(email) {
+  return request("/api/newsletter/subscribe", { method: "POST", body: { email } });
+}
+
+export async function unsubscribeEmail(email) {
+  const params = new URLSearchParams({ email });
+  return request(`/api/newsletter/unsubscribe?${params.toString()}`, { method: "DELETE" });
 }
 
 export { API_BASE_URL };

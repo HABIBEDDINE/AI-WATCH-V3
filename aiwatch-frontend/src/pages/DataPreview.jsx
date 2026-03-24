@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  BarChart, Bar, PieChart, Pie, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+  BarChart, Bar,
+  PieChart, Pie, Cell,
+  AreaChart, Area,
+  XAxis, YAxis,
+  CartesianGrid, Tooltip,
+  Legend, ResponsiveContainer,
 } from "recharts";
 import { getArticles } from "../services/api";
 
@@ -59,34 +63,63 @@ const MOCK_ACTORS = [
   { id: 6, name: "EU Commission", type: "Government", role: "Regulation", mentions: 35 },
 ];
 
-function DataTable() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+function groupByField(articles, field, limit = 8) {
+  const counts = {};
+  articles.forEach(a => {
+    const key = a[field] || "Unknown";
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+function getSignalDistribution(articles) {
+  let strong = 0, weak = 0, unknown = 0;
+  articles.forEach(a => {
+    const s = (a.signal_type || "").toUpperCase();
+    if (s.includes("STRONG")) strong++;
+    else if (s.includes("WEAK")) weak++;
+    else unknown++;
+  });
+  const result = [];
+  if (strong > 0)  result.push({ name: "Strong",  value: strong });
+  if (weak > 0)    result.push({ name: "Weak",    value: weak });
+  if (unknown > 0) result.push({ name: "Unknown", value: unknown });
+  return result;
+}
+
+function getLast7Days(articles) {
+  const today = new Date();
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    days.push({
+      dateObj: d,
+      date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      count: 0,
+    });
+  }
+  articles.forEach(a => {
+    if (!a.publishedAt) return;
+    const parsed = new Date(a.publishedAt);
+    if (isNaN(parsed)) return;
+    days.forEach(d => {
+      if (
+        parsed.getFullYear() === d.dateObj.getFullYear() &&
+        parsed.getMonth()    === d.dateObj.getMonth() &&
+        parsed.getDate()     === d.dateObj.getDate()
+      ) { d.count++; }
+    });
+  });
+  return days.map(({ date, count }) => ({ date, count }));
+}
+
+function DataTable({ articles, loading, error, searchQuery, setSearchQuery }) {
   const [sortBy, setSortBy] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
-
-  const fetchArticles = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await getArticles({ pageSize: 100, search: searchQuery || undefined });
-      setArticles(response.items || []);
-    } catch (err) {
-      setError(err.message);
-      setArticles([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchQuery]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchArticles();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -306,150 +339,207 @@ function DataTable() {
   );
 }
 
-function Charts() {
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(false);
+const CHART_COLORS = ["#6B2C94","#8B3DB5","#1a5fa8","#16a34a","#f59e0b","#e11d48","#0891b2","#7c3aed"];
+const SIGNAL_COLORS = { Strong: "#16a34a", Weak: "#f59e0b", Unknown: "#94a3b8" };
 
-  useEffect(() => {
-    setLoading(true);
-    getArticles({ pageSize: 200 })
-      .then(response => setArticles(response.items || []))
-      .catch(() => setArticles([]))
-      .finally(() => setLoading(false));
-  }, []);
+function ChartPanel({ title, subtitle, badge, children }) {
+  return (
+    <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ padding: "16px 20px 0", borderBottom: "1px solid #f3f4f6", paddingBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{title}</span>
+          {badge && (
+            <span style={{ fontSize: 11, fontWeight: 700, background: "#f5eefb", color: "#6B2C94", padding: "2px 10px", borderRadius: 20 }}>
+              {badge}
+            </span>
+          )}
+        </div>
+        {subtitle && <p style={{ fontSize: 11, color: "#9ca3af", margin: "3px 0 0" }}>{subtitle}</p>}
+      </div>
+      <div style={{ padding: "16px 20px 20px" }}>{children}</div>
+    </div>
+  );
+}
 
-  const articlesByTopic = {};
-  let strongCount = 0, weakCount = 0;
-  
+function StatCard({ label, value, sub, color }) {
+  return (
+    <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: "18px 20px" }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 30, fontWeight: 900, color: color || "#111827", lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function Charts({ articles }) {
+  const topicsData  = groupByField(articles, "search_topic", 10);
+  const sourcesData = groupByField(articles, "source", 10);
+  const last7Data   = getLast7Days(articles);
+
+  // Signal distribution directly from signal_type field
+  const signalCounts = { STRONG: 0, WEAK: 0, UNKNOWN: 0 };
   articles.forEach(a => {
-    articlesByTopic[a.topic] = (articlesByTopic[a.topic] || 0) + 1;
-    if (a.signal_strength === "Strong") strongCount++;
-    else weakCount++;
+    const s = (a.signal_type || "").toUpperCase();
+    if (s.includes("STRONG"))      signalCounts.STRONG++;
+    else if (s.includes("WEAK"))   signalCounts.WEAK++;
+    else                           signalCounts.UNKNOWN++;
   });
+  const signalBarData = [
+    { name: "Strong Signal", count: signalCounts.STRONG,  pct: articles.length ? Math.round((signalCounts.STRONG  / articles.length) * 100) : 0, color: "#16a34a" },
+    { name: "Weak Signal",   count: signalCounts.WEAK,    pct: articles.length ? Math.round((signalCounts.WEAK    / articles.length) * 100) : 0, color: "#f59e0b" },
+    { name: "Unknown",       count: signalCounts.UNKNOWN, pct: articles.length ? Math.round((signalCounts.UNKNOWN / articles.length) * 100) : 0, color: "#94a3b8" },
+  ].filter(d => d.count > 0);
 
-  const topicData = Object.entries(articlesByTopic).map(([topic, count]) => ({ topic, count })).sort((a, b) => b.count - a.count);
-  const signalData = [
-    { name: "Strong", value: strongCount, fill: B.green },
-    { name: "Weak", value: weakCount, fill: B.amber },
-  ];
+  const strongPct = articles.length ? Math.round((signalCounts.STRONG / articles.length) * 100) : 0;
+  const topTopic  = topicsData[0]?.name || "—";
+  const topSource = sourcesData[0]?.name || "—";
 
-  const articlesPerDay = [];
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-    const count = articles.filter(a => a.published_at?.startsWith(dateStr)).length;
-    articlesPerDay.push({
-      day: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      articles: count,
-    });
+  if (articles.length === 0) {
+    return (
+      <div style={{ padding: "60px 0", textAlign: "center", color: "#9ca3af" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#374151", marginBottom: 6 }}>No data loaded</div>
+        <div style={{ fontSize: 13 }}>Switch to the Data Table tab — articles load automatically on page open.</div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-      {/* Articles by Topic */}
-      <div style={{ background: B.white, border: `1px solid ${B.gray200}`, padding: 20, borderRadius: 2 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: B.gray900 }}>
-          {loading ? "Loading..." : `Topics Coverage (${topicData.length} topics)`}
-        </h3>
-        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 16 }}>
-          Shows how many articles were published per topic area
-        </p>
-        {articles.length === 0 ? (
-          <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: B.gray400 }}>
-            No data loaded yet. Go to Data Table tab and load articles.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={topicData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="topic" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="count" fill={B.purple} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+    <div style={{ paddingTop: 8 }}>
+
+      {/* ── KPI Row ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+        <StatCard label="Total Articles"  value={articles.length}        sub="loaded in this session"                    color="#6B2C94" />
+        <StatCard label="Strong Signals"  value={`${strongPct}%`}        sub={`${signalCounts.STRONG} of ${articles.length} articles`} color="#16a34a" />
+        <StatCard label="Top Topic"       value={topTopic}               sub={`${topicsData[0]?.count || 0} articles`}   color="#1a5fa8" />
+        <StatCard label="Unique Sources"  value={sourcesData.length}     sub={`Top: ${topSource}`}                       color="#f59e0b" />
       </div>
 
-      {/* Signal Distribution */}
-      <div style={{ background: B.white, border: `1px solid ${B.gray200}`, padding: 20, borderRadius: 2 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: B.gray900 }}>Signal Distribution</h3>
-        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 16 }}>
-          Shows ratio of Strong vs Weak signals in loaded articles
-        </p>
-        {articles.length === 0 ? (
-          <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: B.gray400 }}>
-            No data loaded yet. Go to Data Table tab and load articles.
+      {/* ── Row 1: Signal Distribution (full width) ── */}
+      <div style={{ marginBottom: 12 }}>
+        <ChartPanel
+          title="Signal Distribution"
+          subtitle={`Based on signal_type field from ${articles.length} articles — Strong signals indicate high-confidence AI trends`}
+          badge={`${signalBarData.length} signal types`}
+        >
+          <div style={{ display: "flex", gap: 32, alignItems: "stretch" }}>
+
+            {/* Bar chart */}
+            <div style={{ flex: 1 }}>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={signalBarData} layout="vertical" margin={{ top: 4, right: 60, bottom: 4, left: 110 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: "#6b7280" }} axisLine={false} tickLine={false} domain={[0, articles.length]} />
+                  <YAxis type="category" dataKey="name" width={110} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#374151", fontWeight: 700 }} />
+                  <Tooltip
+                    cursor={{ fill: "#f9fafb" }}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                    formatter={(v, _, props) => [`${v} articles (${props.payload.pct}%)`, "Count"]}
+                  />
+                  <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={44} label={{ position: "right", formatter: (v) => `${v}`, fontSize: 12, fontWeight: 700, fill: "#374151" }}>
+                    {signalBarData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Signal legend cards */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, justifyContent: "center", minWidth: 180 }}>
+              {signalBarData.map(d => (
+                <div key={d.name} style={{ background: d.color + "12", border: `1px solid ${d.color}33`, borderRadius: 8, padding: "12px 16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>{d.name}</span>
+                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: d.color, lineHeight: 1 }}>{d.count}</div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{d.pct}% of total</div>
+                </div>
+              ))}
+            </div>
           </div>
-        ) : (
+        </ChartPanel>
+      </div>
+
+      {/* ── Row 2: Topic Distribution + Top Sources ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+
+        <ChartPanel title="Topic Distribution" subtitle="Articles per topic (from search_topic field)" badge={`${topicsData.length} topics`}>
           <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={signalData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name}: ${value}`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {signalData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
+            <BarChart data={topicsData} margin={{ top: 8, right: 16, bottom: 40, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+              <XAxis
+                dataKey="name" tick={{ fontSize: 11, fill: "#374151", fontWeight: 600 }} axisLine={false} tickLine={false}
+                tickFormatter={v => v.length > 10 ? v.slice(0, 10) + "…" : v}
+                interval={0} angle={-30} textAnchor="end"
+              />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#6b7280" }} axisLine={false} tickLine={false} />
+              <Tooltip
+                cursor={{ fill: "#f5eefb" }}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                formatter={(v) => [`${v} articles`, "Articles"]}
+              />
+              <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={48}
+                label={{ position: "top", fontSize: 11, fontWeight: 700, fill: "#374151" }}>
+                {topicsData.map((_, i) => (
+                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                 ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Articles Per Day */}
-      <div style={{ background: B.white, border: `1px solid ${B.gray200}`, padding: 20, borderRadius: 2 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: B.gray900 }}>Articles Published (Last 7 Days)</h3>
-        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 16 }}>
-          Daily article publication trend
-        </p>
-        {articles.length === 0 ? (
-          <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: B.gray400 }}>
-            No data loaded yet. Go to Data Table tab and load articles.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={articlesPerDay}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="articles" stroke={B.purple} strokeWidth={2} dot={{ fill: B.purple }} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Top Topics */}
-      <div style={{ background: B.white, border: `1px solid ${B.gray200}`, padding: 20, borderRadius: 2 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: B.gray900 }}>Top 5 Topics</h3>
-        <p style={{ fontSize: 10, color: B.gray500, marginBottom: 16 }}>
-          Ranked by article frequency
-        </p>
-        {articles.length === 0 ? (
-          <div style={{ height: 300, display: "flex", alignItems: "center", justifyContent: "center", color: B.gray400 }}>
-            No data loaded yet. Go to Data Table tab and load articles.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={topicData.sort((a, b) => b.count - a.count).slice(0, 5)} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" tick={{ fontSize: 10 }} />
-              <YAxis dataKey="topic" type="category" width={80} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="count" fill={B.blue} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
-        )}
+        </ChartPanel>
+
+        <ChartPanel title="Top News Sources" subtitle="Sources publishing the most articles" badge={`top ${sourcesData.length}`}>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={sourcesData} layout="vertical" margin={{ top: 0, right: 24, bottom: 0, left: 130 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11, fill: "#6b7280" }} axisLine={false} tickLine={false} />
+              <YAxis
+                type="category" dataKey="name" width={130} axisLine={false} tickLine={false}
+                tick={{ fontSize: 11, fill: "#374151", fontWeight: 600 }}
+                tickFormatter={v => v.length > 18 ? v.slice(0, 18) + "…" : v}
+              />
+              <Tooltip
+                cursor={{ fill: "#f5eefb" }}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                formatter={(v) => [`${v} articles`, "Articles"]}
+              />
+              <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={24}>
+                {sourcesData.map((_, i) => (
+                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} fillOpacity={Math.max(0.4, 1 - i * 0.07)} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartPanel>
       </div>
+
+      {/* ── Row 3: Publication Trend (full width) ── */}
+      <ChartPanel title="Publication Trend" subtitle="Number of articles published per day over the last 7 days">
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={last7Data} margin={{ top: 8, right: 16, bottom: 0, left: -10 }}>
+            <defs>
+              <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#6B2C94" stopOpacity={0.2} />
+                <stop offset="100%" stopColor="#6B2C94" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+            <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#6b7280" }} axisLine={false} tickLine={false} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#6b7280" }} axisLine={false} tickLine={false} />
+            <Tooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+              formatter={(v) => [`${v} articles`, "Published"]}
+            />
+            <Area type="monotone" dataKey="count" stroke="#6B2C94" strokeWidth={2.5} fill="url(#trendGrad)"
+              dot={{ r: 5, fill: "#6B2C94", strokeWidth: 0 }} activeDot={{ r: 7, stroke: "#fff", strokeWidth: 2 }}
+              label={{ position: "top", fontSize: 11, fontWeight: 700, fill: "#6B2C94", formatter: v => v > 0 ? v : "" }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </ChartPanel>
+
     </div>
   );
 }
@@ -580,6 +670,29 @@ function FundingAndActors() {
 
 export default function DataPreview() {
   const [activeTab, setActiveTab] = useState("table");
+  const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const fetchArticles = useCallback(async (search) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getArticles({ pageSize: 100, search: search || undefined });
+      setArticles(response.items || []);
+    } catch (err) {
+      setError(err.message);
+      setArticles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => fetchArticles(searchQuery), searchQuery ? 500 : 0);
+    return () => clearTimeout(timer);
+  }, [searchQuery, fetchArticles]);
 
   const tabs = [
     { id: "table", label: "Data Table" },
@@ -628,8 +741,8 @@ export default function DataPreview() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === "table" && <DataTable />}
-        {activeTab === "charts" && <Charts />}
+        {activeTab === "table" && <DataTable articles={articles} loading={loading} error={error} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />}
+        {activeTab === "charts" && <Charts articles={articles} />}
         {activeTab === "funding" && <FundingAndActors />}
       </div>
     </div>

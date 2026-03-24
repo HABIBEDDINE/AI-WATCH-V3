@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, BackgroundTasks
+from fastapi import FastAPI, Query, BackgroundTasks, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import List, Optional, Dict, Tuple
@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from ingestion import fetch_sector_news
 from summarizer import summarize_articles
 from main import PRESET_SECTORS
+import newsletter as newsletter_module
 import scheduler
 
 app = FastAPI(title="AI Watch API")
@@ -130,28 +131,69 @@ def get_trend_series(articles: List[dict]) -> List[int]:
 
 
 def get_top_topics(articles: List[dict]) -> List[dict]:
-    """Build top topics from article metadata."""
-    counts = {}
+    """Build top topics from article metadata with enriched fields."""
+    # Group articles by their primary label
+    label_articles: Dict[str, List[dict]] = {}
     for a in articles:
         labels = [
-            a.get('industry', 'General'),
-            a.get('market_segment', 'General'),
-            a.get('signal_type', 'Signal')
+            a.get('industry', ''),
+            a.get('market_segment', ''),
         ]
         for label in labels:
-            if not label or label in ["Other", "General", "No clear segment", "Unknown", "Signal"]:
+            if not label or label in ["Other", "General", "No clear segment", "Unknown", "Signal", ""]:
                 continue
-            counts[label] = counts.get(label, 0) + 1
+            label_articles.setdefault(label, []).append(a)
 
-    ranked = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:3]
+    if not label_articles:
+        # Fallback using signal_type
+        for a in articles:
+            sig = a.get('signal_type', '')
+            if sig and sig not in ["Unknown", "Noise", ""]:
+                label_articles.setdefault(sig, []).append(a)
+
+    ranked = sorted(label_articles.items(), key=lambda x: len(x[1]), reverse=True)[:6]
     if not ranked:
-        ranked = [("AI Intelligence", 1), ("Market Signals", 1), ("Competitive Watch", 1)]
+        return [
+            {"topic": "AI Intelligence", "pct": 72, "delta": "+8%", "source_count": 0,
+             "trend_score": 7, "category": "Research", "summary": "No articles available yet.", "key_actors": []},
+        ]
 
-    max_count = ranked[0][1] if ranked else 1
+    max_count = len(ranked[0][1]) if ranked else 1
     topics = []
-    for name, count in ranked:
+    for name, arts in ranked:
+        count = len(arts)
         pct = min(99, 40 + int((count / max_count) * 59))
-        topics.append({"topic": name, "pct": pct, "delta": f"+{max(1, count * 2)}%"})
+        delta_val = max(1, count * 2)
+        # Average relevance → trend score (1–10)
+        avg_rel = sum(a.get('relevance_score', 5) for a in arts) / count
+        trend_score = min(10, max(1, round(avg_rel)))
+        # Category from most common signal type
+        sig_counts: Dict[str, int] = {}
+        for a in arts:
+            s = a.get('signal_type', 'Signal')
+            if s not in ["Unknown", "Noise"]:
+                sig_counts[s] = sig_counts.get(s, 0) + 1
+        category = max(sig_counts, key=sig_counts.get) if sig_counts else "Signal"
+        # Best summary (highest relevance article)
+        best = max(arts, key=lambda a: a.get('relevance_score', 0))
+        raw_summary = best.get('summary', '') or best.get('description', '') or ''
+        # Clean up bullet-point summaries from the summarizer
+        summary_lines = [l.lstrip('- •').strip() for l in raw_summary.splitlines() if l.strip().startswith('-')]
+        summary = summary_lines[0] if summary_lines else raw_summary[:140]
+        # Key actors
+        actors_raw = best.get('key_actors', '') or ''
+        key_actors = [a.strip() for a in actors_raw.replace(';', ',').split(',') if a.strip() and a.strip().lower() != 'none'][:3]
+
+        topics.append({
+            "topic": name,
+            "pct": pct,
+            "delta": f"+{delta_val}%",
+            "source_count": count,
+            "trend_score": trend_score,
+            "category": category,
+            "summary": summary,
+            "key_actors": key_actors,
+        })
     return topics
 
 
@@ -262,7 +304,9 @@ def get_trends(persona: str = Query("cto"), max_articles: int = 12):
         "series": series,
         "latest": latest,
         "delta": f"{delta_pct:+d}%",
-        "top_topics": top_topics
+        "top_topics": top_topics,
+        "topics_count": len(top_topics),
+        "articles_analyzed": len(summarized),
     }
 
 
@@ -762,6 +806,122 @@ async def startup():
 async def shutdown():
     """Stop background scheduler on app shutdown."""
     scheduler.stop()
+
+
+# ==================== NEWSLETTER ENDPOINTS ====================
+
+_newsletter_state = {
+    "last_sent": None,
+    "last_status": None,
+    "sending": False,
+    "recipients": None,  # None = loaded from env
+}
+
+
+def _get_recipients() -> List[str]:
+    """Return recipients from state override or env variable."""
+    if _newsletter_state["recipients"] is not None:
+        return _newsletter_state["recipients"]
+    cfg = newsletter_module.get_smtp_config()
+    return [r for r in cfg.get("to_emails", []) if r.strip()]
+
+
+def _build_sector_data_for_newsletter(persona: str = "cto", max_articles: int = 10) -> dict:
+    """Build sector_data dict that newsletter.py expects."""
+    topic = get_topic_from_persona(persona)
+    summarized = get_summarized_articles(persona=persona, max_articles=max_articles, days_back=1)
+    return {topic: summarized} if summarized else {}
+
+
+async def _perform_newsletter_send(persona: str = "cto"):
+    """Background task: generate and send daily newsletter."""
+    _newsletter_state["sending"] = True
+    try:
+        sector_data = _build_sector_data_for_newsletter(persona=persona)
+        if not sector_data or all(len(v) == 0 for v in sector_data.values()):
+            # Fallback: fetch live articles directly
+            topic = get_topic_from_persona(persona)
+            articles = get_summarized_articles(persona=persona, max_articles=10, days_back=3)
+            sector_data = {topic: articles}
+
+        # Override recipients if state has custom list
+        import os
+        recipients = _get_recipients()
+        if recipients:
+            os.environ["NEWSLETTER_RECIPIENTS"] = ",".join(recipients)
+
+        today = datetime.now().strftime("%B %d, %Y")
+        success = newsletter_module.send_newsletter(
+            sector_data,
+            subject=f"AI Watch Daily Intelligence — {today}"
+        )
+        _newsletter_state["last_sent"] = datetime.now().isoformat()
+        _newsletter_state["last_status"] = "sent" if success else "saved_only"
+    except Exception as e:
+        logger.error(f"Newsletter send error: {e}")
+        _newsletter_state["last_status"] = f"error: {str(e)}"
+    finally:
+        _newsletter_state["sending"] = False
+
+
+@app.get("/api/newsletter/status")
+def get_newsletter_status():
+    """Return newsletter configuration and last-send status."""
+    cfg = newsletter_module.get_smtp_config()
+    smtp_ready = bool(cfg.get("username") and cfg.get("password"))
+    recipients = _get_recipients()
+    return {
+        "smtp_configured": smtp_ready,
+        "smtp_host": cfg.get("host", "smtp.gmail.com"),
+        "smtp_port": cfg.get("port", 587),
+        "recipients": recipients,
+        "recipient_count": len(recipients),
+        "last_sent": _newsletter_state["last_sent"],
+        "last_status": _newsletter_state["last_status"],
+        "sending": _newsletter_state["sending"],
+        "schedule": "Daily at 07:00 UTC",
+    }
+
+
+@app.post("/api/newsletter/send")
+async def send_newsletter_now(
+    background_tasks: BackgroundTasks,
+    persona: str = Query("cto"),
+):
+    """Manually trigger newsletter generation and send."""
+    if _newsletter_state["sending"]:
+        return {"status": "already_sending", "message": "Newsletter is already being sent."}
+    background_tasks.add_task(_perform_newsletter_send, persona)
+    return {
+        "status": "started",
+        "message": "Newsletter generation started. It will be sent shortly.",
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/api/newsletter/subscribe")
+def subscribe_email(email: str = Body(..., embed=True)):
+    """Add an email address to the newsletter recipients."""
+    email = email.strip().lower()
+    if not email or "@" not in email:
+        return {"status": "error", "message": "Invalid email address."}
+    recipients = _get_recipients()
+    if _newsletter_state["recipients"] is None:
+        _newsletter_state["recipients"] = recipients
+    if email not in _newsletter_state["recipients"]:
+        _newsletter_state["recipients"].append(email)
+    return {"status": "subscribed", "recipients": _newsletter_state["recipients"]}
+
+
+@app.delete("/api/newsletter/unsubscribe")
+def unsubscribe_email(email: str = Query(...)):
+    """Remove an email address from newsletter recipients."""
+    email = email.strip().lower()
+    recipients = _get_recipients()
+    if _newsletter_state["recipients"] is None:
+        _newsletter_state["recipients"] = recipients
+    _newsletter_state["recipients"] = [r for r in _newsletter_state["recipients"] if r != email]
+    return {"status": "unsubscribed", "recipients": _newsletter_state["recipients"]}
 
 
 if __name__ == "__main__":

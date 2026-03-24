@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getArticles, triggerIngest, saveReport } from "../services/api";
 import { jsPDF } from "jspdf";
+import { Search, Grid, List } from "lucide-react";
 
 const B = {
   purple: "#6B2C94",
@@ -27,7 +28,7 @@ const B = {
 const TOPICS = ["All Industries", "AI", "Fintech", "HealthTech", "Cybersecurity", "CleanTech", "Robotics"];
 const SIGNALS = ["All", "Strong", "Weak"];
 
-function StatCard({ label, value, delta, icon }) {
+function StatCard({ label, value, delta }) {
   return (
     <div style={{
       background: B.gray50,
@@ -36,10 +37,8 @@ function StatCard({ label, value, delta, icon }) {
       padding: "16px 18px",
       boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: B.green, letterSpacing: 0.5 }}>
-          ▲ {delta}
-        </span>
+      <div style={{ fontSize: 10, fontWeight: 700, color: B.green, letterSpacing: 0.5, marginBottom: 10 }}>
+        ▲ {delta}
       </div>
       <div style={{ fontSize: 26, fontWeight: 800, color: B.purple, marginBottom: 4, letterSpacing: -0.5 }}>{value}</div>
       <div style={{ fontSize: 11, color: B.gray400, fontWeight: 600, letterSpacing: 0.3 }}>{label}</div>
@@ -47,87 +46,67 @@ function StatCard({ label, value, delta, icon }) {
   );
 }
 
-function ArticleCard({ article, expanded, onToggle, isSelected, onSelectChange }) {
+function ArticleCard({ article, onToggle, isSelected, onSelectChange }) {
+  const isStrong = article.signal_strength === "Strong";
   return (
     <div
+      onClick={onToggle}
+      onMouseEnter={e => {
+        e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)";
+        e.currentTarget.style.transform = "translateY(-1px)";
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
+        e.currentTarget.style.transform = "none";
+      }}
       style={{
-        background: isSelected ? B.purplePale : (expanded ? B.gray50 : B.white),
-        border: isSelected ? `2px solid ${B.purple}` : `1px solid ${B.gray100}`,
-        borderLeft: expanded ? `4px solid ${B.purple}` : "4px solid transparent",
+        background: B.white,
+        border: `1px solid ${B.gray100}`,
         borderRadius: 4,
         padding: "20px 24px",
         cursor: "pointer",
         transition: "all 0.2s",
-        minHeight: 280,
         display: "flex",
         flexDirection: "column",
         boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-        position: "relative",
       }}
     >
-      {/* Checkbox */}
-      <div style={{ position: "absolute", top: 12, left: 12 }}>
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={(e) => {
-            e.stopPropagation();
-            onSelectChange();
-          }}
-          style={{ cursor: "pointer", width: 18, height: 18 }}
-        />
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, marginLeft: 20 }}>
-        <span style={{ fontSize: 10, color: B.gray400, fontWeight: 600 }}>{article.source}</span>
-        <span style={{ fontSize: 9, color: B.gray400 }}>{new Date(article.published_at).toLocaleDateString()}</span>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 9, background: B.purple, color: B.white, padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>{article.topic}</span>
+      {/* Tags */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
         <span style={{
-          fontSize: 9,
-          background: article.signal_strength === "Strong" ? B.green : B.amber,
-          color: B.white,
-          padding: "2px 8px",
-          borderRadius: 4,
-          fontWeight: 700,
-          textTransform: "uppercase",
-        }}>
-          {article.signal_strength}
-        </span>
+          fontSize: 10, padding: "3px 8px", borderRadius: 4, fontWeight: 700,
+          background: "#F5EEFB", color: "#6B2C94",
+        }}>{article.topic || article.search_topic || "General"}</span>
+        <span style={{
+          fontSize: 10, padding: "3px 8px", borderRadius: 4, fontWeight: 700,
+          background: isStrong ? "#E8F5EE" : "#FEF3E2",
+          color: isStrong ? "#1A8A4A" : "#B45309",
+        }}>{isStrong ? "STRONG" : "WEAK"}</span>
       </div>
 
-      <div 
-        onClick={onToggle}
-        style={{ cursor: "pointer", flex: 1 }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 700, color: B.gray900, lineHeight: 1.45, marginBottom: 12, flex: 1 }}>
-          {article.title}
-        </div>
-
-        <div style={{ fontSize: 13, color: B.gray600, lineHeight: 1.6, marginBottom: 12, flex: 1 }}>
-          {(article.summary || "").substring(0, 120)}...
-        </div>
+      {/* Title */}
+      <div style={{ fontSize: 15, fontWeight: 700, color: "#111", lineHeight: 1.45, marginBottom: 8, flex: 1 }}>
+        {article.title}
       </div>
 
+      {/* Summary — 3-line fade */}
+      <div style={{
+        fontSize: 13, color: "#555", lineHeight: 1.6, marginBottom: 12,
+        display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden",
+      }}>
+        {article.summary || ""}
+      </div>
+
+      {/* Footer row */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ fontSize: 10, color: B.gray500 }}>
-          {article.industry}
-        </span>
+        <span style={{ fontSize: 11, color: "#999" }}>{article.source}</span>
+        <span style={{ fontSize: 11, color: "#999" }}>{new Date(article.published_at).toLocaleDateString()}</span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 9, color: B.gray400 }}>Relevance</span>
-        <div style={{ flex: 1, height: 3, background: B.gray200, borderRadius: 2 }}>
-          <div style={{ width: `${(article.relevance || 5) * 10}%`, height: "100%", background: B.purple, borderRadius: 2 }} />
-        </div>
-        <span style={{ fontSize: 10, fontWeight: 700, color: B.purple, minWidth: 20 }}>{article.relevance || 5}/10</span>
-      </div>
-
-      <a 
+      <a
         onClick={(e) => {
           e.preventDefault();
+          e.stopPropagation();
           const articleUrl = article.url || article.link || `https://www.google.com/search?q=${encodeURIComponent(article.title)}`;
           window.open(articleUrl, "_blank", "noopener,noreferrer");
         }}
@@ -481,133 +460,134 @@ export default function Explore() {
 
 
 
+  const avgRelevance = articles.length
+    ? (articles.reduce((a, b) => a + (b.relevance || 5), 0) / articles.length).toFixed(1)
+    : "—";
+  const weakCount = articles.filter(a => a.signal_strength === "Weak").length;
+
   return (
     <div style={{ background: B.white, padding: "24px 28px", minHeight: "100%" }}>
-      {/* ── TOP STATS ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 24 }}>
-        <StatCard label="Articles" value={totalCount} delta="+12 today" icon="📄" />
-        <StatCard label="Strong Signals" value={articles.filter(a => a.signal_strength === "Strong").length} delta="+5" icon="📡" />
-        <StatCard label="Avg Relevance" value={articles.length ? (articles.reduce((a, b) => a + (b.relevance || 5), 0) / articles.length).toFixed(1) : "0"} delta="+0.3" icon="🎯" />
-        <StatCard label="Weak Signals" value={articles.filter(a => a.signal_strength === "Weak").length} delta="+3" icon="💰" />
+
+      {/* ── PAGE HEADER ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111", letterSpacing: -0.3, marginBottom: 4 }}>
+            Explore Intelligence
+          </h1>
+          <p style={{ fontSize: 12, color: "#999" }}>Live monitoring across selected industries</p>
+        </div>
+        <button
+          onClick={handleIngest}
+          disabled={loading}
+          style={{
+            background: "transparent",
+            color: B.purple,
+            border: `1.5px solid ${B.purple}`,
+            padding: "8px 18px",
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: loading ? "not-allowed" : "pointer",
+            opacity: loading ? 0.6 : 1,
+            letterSpacing: 0.3,
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "#F5EEFB"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+        >
+          {loading ? "Loading..." : "Generate New Data"}
+        </button>
       </div>
 
-      {/* ── CONTROLS BAR ── */}
-      <div style={{ background: B.white, border: `1px solid ${B.gray100}`, padding: "16px 20px", marginBottom: 24, borderRadius: 4, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+      {/* ── KPI STRIP (4 cards) ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 8 }}>
+        <StatCard label="Tech Signals" value="47" delta="+12 today" />
+        <StatCard label="Articles" value={totalCount} delta="+12 today" />
+        <StatCard label="Strong Signals" value={articles.filter(a => a.signal_strength === "Strong").length} delta="+5" />
+        <StatCard label="DXC Match Score" value="94%" delta="AI Readiness fit" />
+      </div>
+      {/* Secondary metrics text line */}
+      <div style={{ fontSize: 11, color: "#999", marginBottom: 20, letterSpacing: 0.2 }}>
+        Patents: 234 &nbsp;·&nbsp; Startups: 1,204 &nbsp;·&nbsp; Avg Relevance: {avgRelevance} &nbsp;·&nbsp; Weak Signals: {weakCount}
+      </div>
+
+      {/* ── TOPIC PILLS ── */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        {TOPICS.map(topic => (
           <button
-            onClick={handleIngest}
-            disabled={loading}
+            key={topic}
+            onClick={() => setSelectedTopic(topic)}
             style={{
-              background: B.purple,
-              color: B.white,
-              border: "none",
-              padding: "8px 16px",
-              borderRadius: 2,
+              padding: "6px 14px",
+              border: selectedTopic === topic ? `1.5px solid ${B.purple}` : `1px solid #E8E8E8`,
+              background: selectedTopic === topic ? "#F5EEFB" : "transparent",
+              color: selectedTopic === topic ? B.purple : B.gray600,
               fontSize: 12,
-              fontWeight: 700,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.6 : 1,
-            }}>
-            {loading ? "Loading..." : "Generate New Data →"}
-          </button>
-
-          <button
-            onClick={() => setShowReportModal(true)}
-            disabled={articles.length === 0}
-            style={{
-              background: B.green,
-              color: B.white,
-              border: "none",
-              padding: "8px 16px",
-              borderRadius: 2,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: articles.length === 0 ? "not-allowed" : "pointer",
-              opacity: articles.length === 0 ? 0.6 : 1,
-            }}>
-            📄 Generate Reports →
-          </button>
-
-          <div style={{ display: "flex", gap: 6 }}>
-            {TOPICS.map(topic => (
-              <button
-                key={topic}
-                onClick={() => setSelectedTopic(topic)}
-                style={{
-                  padding: "6px 12px",
-                  border: selectedTopic === topic ? `2px solid ${B.purple}` : `1px solid ${B.gray100}`,
-                  background: selectedTopic === topic ? B.purple : B.gray50,
-                  color: selectedTopic === topic ? B.white : B.gray600,
-                  fontSize: 11,
-                  fontWeight: selectedTopic === topic ? 700 : 500,
-                  cursor: "pointer",
-                  borderRadius: 4,
-                }}
-              >
-                {topic}
-              </button>
-            ))}
-          </div>
-
-          <select
-            value={selectedSignal}
-            onChange={(e) => setSelectedSignal(e.target.value)}
-            style={{
-              padding: "6px 10px",
-              border: `1px solid ${B.gray100}`,
-              background: B.white,
-              fontSize: 11,
+              fontWeight: selectedTopic === topic ? 700 : 400,
               cursor: "pointer",
-              borderRadius: 4,
-            }}>
-            {SIGNALS.map(signal => (
-              <option key={signal} value={signal}>{signal}</option>
-            ))}
-          </select>
+              borderRadius: 999,
+              transition: "all 0.15s",
+            }}
+          >
+            {topic}
+          </button>
+        ))}
+      </div>
 
+      {/* ── SEARCH BAR + VIEW TOGGLES ── */}
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 20, gap: 10 }}>
+        <div style={{ flex: 1, position: "relative" }}>
+          <Search
+            size={15}
+            strokeWidth={1.8}
+            style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#999", pointerEvents: "none" }}
+          />
           <input
             type="text"
             placeholder="Search articles..."
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
+            onFocus={e => { e.target.style.borderColor = B.purple; e.target.style.boxShadow = `0 0 0 3px ${B.purple}20`; }}
+            onBlur={e => { e.target.style.borderColor = "#E8E8E8"; e.target.style.boxShadow = "none"; }}
             style={{
-              padding: "6px 12px",
-              border: `1px solid ${B.gray100}`,
-              borderRadius: 4,
-              fontSize: 11,
-              width: 200,
+              width: "100%",
+              padding: "10px 14px 10px 40px",
+              border: `1px solid #E8E8E8`,
+              borderRadius: 8,
+              fontSize: 13,
+              outline: "none",
+              transition: "border-color 0.15s, box-shadow 0.15s",
             }}
           />
-
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <button
-              onClick={() => setViewMode("grid")}
-              style={{
-                padding: "6px 10px",
-                border: viewMode === "grid" ? `2px solid ${B.purple}` : `1px solid ${B.gray100}`,
-                background: viewMode === "grid" ? B.purple : B.gray50,
-                color: viewMode === "grid" ? B.white : B.gray600,
-                cursor: "pointer",
-                fontSize: 14,
-                borderRadius: 4,
-              }}>
-              ⊞
-            </button>
-            <button
-              onClick={() => setViewMode("list")}
-              style={{
-                padding: "6px 10px",
-                border: viewMode === "list" ? `2px solid ${B.purple}` : `1px solid ${B.gray100}`,
-                background: viewMode === "list" ? B.purple : B.gray50,
-                color: viewMode === "list" ? B.white : B.gray600,
-                cursor: "pointer",
-                fontSize: 14,
-                borderRadius: 4,
-              }}>
-              ☰
-            </button>
-          </div>
         </div>
+        <button
+          onClick={() => setViewMode("grid")}
+          style={{
+            width: 28, height: 28, flexShrink: 0,
+            border: viewMode === "grid" ? `1.5px solid ${B.purple}` : `1px solid #E8E8E8`,
+            background: viewMode === "grid" ? "#F5EEFB" : "transparent",
+            color: viewMode === "grid" ? B.purple : B.gray500,
+            cursor: "pointer",
+            borderRadius: 6,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.15s",
+          }}>
+          <Grid size={14} strokeWidth={1.8} />
+        </button>
+        <button
+          onClick={() => setViewMode("list")}
+          style={{
+            width: 28, height: 28, flexShrink: 0,
+            border: viewMode === "list" ? `1.5px solid ${B.purple}` : `1px solid #E8E8E8`,
+            background: viewMode === "list" ? "#F5EEFB" : "transparent",
+            color: viewMode === "list" ? B.purple : B.gray500,
+            cursor: "pointer",
+            borderRadius: 6,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.15s",
+          }}>
+          <List size={14} strokeWidth={1.8} />
+        </button>
       </div>
 
       {/* ── ERROR MESSAGE ── */}
@@ -710,7 +690,6 @@ export default function Explore() {
             <ArticleCard
               key={article.id}
               article={article}
-              expanded={expandedCardId === article.id}
               onToggle={() => setExpandedCardId(expandedCardId === article.id ? null : article.id)}
               isSelected={selectedArticles.has(article.id)}
               onSelectChange={() => toggleArticleSelection(article.id)}

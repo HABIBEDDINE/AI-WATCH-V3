@@ -415,25 +415,25 @@ def run_ingest_fast(topic: str = None, limit: int = 20):
     logger.info(f"⚡ Fast ingest from MULTIPLE SOURCES for topic: {topic}")
     
     try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed as _as_completed
+
+        def _fetch_perplexity(): return fetch_news_perplexity(query, max_results=limit)
+        def _fetch_newsapi():    return fetch_news(query, days_back=7, max_results=limit)
+        def _fetch_google():     return fetch_google_news_rss(query, max_results=limit)
+
         all_raw_articles = []
-        
-        # 1. Fetch from Perplexity AI (FAST - real-time web search, no rate limits)
-        logger.info(f"   🔮 Fetching from Perplexity AI (real-time web search)...")
-        perplexity_articles = fetch_news_perplexity(query, max_results=limit)
-        all_raw_articles.extend(perplexity_articles)
-        logger.info(f"      ✓ Got {len(perplexity_articles)} articles from Perplexity")
-        
-        # 2. Fetch from NewsAPI (FAST - world's largest news API)
-        logger.info(f"   📡 Fetching from NewsAPI (50k+ sources)...")
-        newsapi_articles = fetch_news(query, days_back=7, max_results=limit)
-        all_raw_articles.extend(newsapi_articles)
-        logger.info(f"      ✓ Got {len(newsapi_articles)} articles from NewsAPI")
-        
-        # 3. Fetch from Google News RSS (FAST - free, unlimited)
-        logger.info(f"   🌐 Fetching from Google News RSS (free, unlimited)...")
-        google_articles = fetch_google_news_rss(query, max_results=limit)
-        all_raw_articles.extend(google_articles)
-        logger.info(f"      ✓ Got {len(google_articles)} articles from Google News RSS")
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            futs = {ex.submit(_fetch_perplexity): "Perplexity",
+                    ex.submit(_fetch_newsapi):    "NewsAPI",
+                    ex.submit(_fetch_google):     "Google RSS"}
+            for fut in _as_completed(futs):
+                src = futs[fut]
+                try:
+                    arts = fut.result()
+                    all_raw_articles.extend(arts)
+                    logger.info(f"      + {src}: {len(arts)} articles")
+                except Exception as e:
+                    logger.warning(f"      - {src} failed: {e}")
         
         if not all_raw_articles:
             logger.warning(f"   ⚠️  No articles found for {topic}")

@@ -552,33 +552,30 @@ def _perform_ingestion(topic: Optional[str] = None):
         
         results = []
         
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def fetch_topic(t):
+            try:
+                arts = run_ingestion(topic=t, limit=15)
+                logger.info(f"  ✓ {t}: {len(arts)} articles")
+                return arts
+            except Exception as e:
+                logger.warning(f"  ⚠ {t}: {e}")
+                return []
+
         if topic:
-            # Ingest specific topic
             if topic not in PRESET_SECTORS:
                 logger.error(f"❌ Unknown topic: {topic}")
                 return
-            
             logger.info(f"📡 Fetching articles for topic: {topic}")
-            try:
-                articles = run_ingestion(topic=topic, limit=20)
-                logger.info(f"✓ Got {len(articles)} articles for {topic}")
-                results.extend(articles)
-            except Exception as e:
-                logger.error(f"❌ Error fetching {topic}: {e}", exc_info=True)
-                raise
+            results.extend(fetch_topic(topic))
         else:
-            # Ingest all 6 topics
-            logger.info(f"📡 Fetching articles for all 6 topics...")
-            for t in PRESET_SECTORS.keys():
-                try:
-                    logger.info(f"  → Fetching {t}...")
-                    articles = run_ingestion(topic=t, limit=20)
-                    logger.info(f"  ✓ Got {len(articles)} articles for {t}")
-                    results.extend(articles)
-                except Exception as e:
-                    logger.warning(f"  ⚠ Error fetching {t}: {e}")
-                    # Continue with other topics even if one fails
-                    continue
+            topics = list(PRESET_SECTORS.keys())
+            logger.info(f"📡 Fetching all {len(topics)} topics in parallel...")
+            with ThreadPoolExecutor(max_workers=len(topics)) as executor:
+                futures = {executor.submit(fetch_topic, t): t for t in topics}
+                for fut in as_completed(futures):
+                    results.extend(fut.result())
         
         # Update cache
         _articles_cache.clear()
@@ -827,10 +824,30 @@ def _get_recipients() -> List[str]:
 
 
 def _build_sector_data_for_newsletter(persona: str = "cto", max_articles: int = 10) -> dict:
-    """Build sector_data dict that newsletter.py expects."""
-    topic = get_topic_from_persona(persona)
-    summarized = get_summarized_articles(persona=persona, max_articles=max_articles, days_back=1)
-    return {topic: summarized} if summarized else {}
+    """Build sector_data dict from the in-memory articles cache."""
+    articles = _articles_cache[:max_articles] if _articles_cache else []
+
+    # Group by topic/industry
+    sector_map: dict = {}
+    for a in articles:
+        sector = a.get("topic") or a.get("industry") or "General"
+        sector_map.setdefault(sector, []).append({
+            "title":          a.get("title", "Untitled"),
+            "url":            a.get("url") or a.get("link", "#"),
+            "source":         a.get("source", "Unknown"),
+            "summary":        a.get("summary") or a.get("description") or "No summary available.",
+            "signal_type":    a.get("signal_strength", "Weak"),
+            "relevance_score": a.get("relevance") or a.get("relevance_score", 5),
+            "industry":       a.get("industry", "General"),
+            "market_segment": a.get("market_segment", "General"),
+            "key_actors":     a.get("key_actors", "None"),
+            "startups":       a.get("startups", "None"),
+            "funding":        a.get("funding", "None"),
+            "patents":        a.get("patents", "None"),
+            "publications":   a.get("publications", "None"),
+        })
+
+    return sector_map if sector_map else {}
 
 
 async def _perform_newsletter_send(persona: str = "cto"):
@@ -839,10 +856,14 @@ async def _perform_newsletter_send(persona: str = "cto"):
     try:
         sector_data = _build_sector_data_for_newsletter(persona=persona)
         if not sector_data or all(len(v) == 0 for v in sector_data.values()):
-            # Fallback: fetch live articles directly
-            topic = get_topic_from_persona(persona)
-            articles = get_summarized_articles(persona=persona, max_articles=10, days_back=3)
-            sector_data = {topic: articles}
+            sector_data = {"General": [{"title": "No articles available yet.",
+                                        "url": "#", "source": "AI Watch",
+                                        "summary": "Run 'Generate New Data' in the Explore page to ingest the latest intelligence.",
+                                        "signal_type": "Weak", "relevance_score": 5,
+                                        "industry": "General", "market_segment": "General",
+                                        "key_actors": "None", "startups": "None",
+                                        "funding": "None", "patents": "None",
+                                        "publications": "None"}]}
 
         # Override recipients if state has custom list
         import os
@@ -858,7 +879,7 @@ async def _perform_newsletter_send(persona: str = "cto"):
         _newsletter_state["last_sent"] = datetime.now().isoformat()
         _newsletter_state["last_status"] = "sent" if success else "saved_only"
     except Exception as e:
-        logger.error(f"Newsletter send error: {e}")
+        print(f"Newsletter send error: {e}")
         _newsletter_state["last_status"] = f"error: {str(e)}"
     finally:
         _newsletter_state["sending"] = False

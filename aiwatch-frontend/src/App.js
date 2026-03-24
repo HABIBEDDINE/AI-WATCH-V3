@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import { getFeed, getRadar, getHealth } from "./services/api";
+import { Compass, Lightbulb, Target, BarChart2, FileText, Mail } from "lucide-react";
 import Explore from "./pages/Explore";
 import Solutions from "./pages/Solutions";
 import DataPreview from "./pages/DataPreview";
@@ -455,12 +456,12 @@ export default function AIWatchDXC() {
   const liveColor = health.status === "online" ? B.green : health.status === "offline" ? B.red : B.amber;
 
   const navTabs = [
-    { id:"feed",       label:"Explore",        path:"/" },
-    { id:"radar",      label:"Solutions",      path:"/solutions" },
-    { id:"matching",   label:"Matching",       path:"/matching" },
-    { id:"data",       label:"Data Preview",   path:"/data-preview" },
-    { id:"reports",    label:"Reports",        path:"/reports" },
-    { id:"newsletter", label:"Newsletter",     path:"/newsletter" },
+    { id:"feed",       label:"Explore",        path:"/",             Icon: Compass   },
+    { id:"radar",      label:"Solutions",      path:"/solutions",    Icon: Lightbulb },
+    { id:"matching",   label:"Matching",       path:"/matching",     Icon: Target    },
+    { id:"data",       label:"Data Preview",   path:"/data-preview", Icon: BarChart2 },
+    { id:"reports",    label:"Reports",        path:"/reports",      Icon: FileText  },
+    { id:"newsletter", label:"Newsletter",     path:"/newsletter",   Icon: Mail      },
   ];
 
   const location = useLocation();
@@ -536,25 +537,26 @@ export default function AIWatchDXC() {
           padding:"24px 0", display:"flex", flexDirection:"column",
           overflowY:"auto", flexShrink:0,
         }}>
-          <div style={{ margin:"0 16px 20px", paddingBottom:20, borderBottom:`1px solid ${B.gray100}` }}>
-            <div style={{ fontSize:11, fontWeight:700, color:B.gray500, letterSpacing:1.5, textTransform:"uppercase", marginBottom:8 }}>Scope</div>
-            <div style={{ fontSize:14, fontWeight:700, color:B.gray900 }}>{activeIndustry.label}</div>
-            <div style={{ fontSize:11, color:B.gray500, marginTop:6 }}>Cross-source intelligence feed</div>
-          </div>
-
           {navTabs.map(t2 => {
             const isActive = location.pathname === t2.path;
             return (
-              <Link key={t2.id} to={t2.path} style={{
-                display:"flex", alignItems:"center",
-                padding:"11px 16px", border:"none",
-                borderLeft:`3px solid ${isActive ? p.tagColor : "transparent"}`,
-                background: isActive ? `${p.tagColor}08` : "transparent",
-                color: isActive ? p.tagColor : B.gray500,
-                fontSize:12, fontWeight: isActive ? 700 : 500,
-                cursor:"pointer", textAlign:"left", width:"100%", transition:"all 0.15s",
-                textDecoration:"none",
-              }}>
+              <Link
+                key={t2.id}
+                to={t2.path}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = B.gray50; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                style={{
+                  display:"flex", alignItems:"center", gap:10,
+                  padding:"10px 16px", border:"none",
+                  borderLeft:`3px solid ${isActive ? B.purple : "transparent"}`,
+                  background: isActive ? B.purplePale : "transparent",
+                  color: isActive ? B.purple : B.gray500,
+                  fontSize:13, fontWeight: isActive ? 700 : 400,
+                  cursor:"pointer", textAlign:"left", width:"100%", transition:"all 0.15s",
+                  textDecoration:"none",
+                }}
+              >
+                <t2.Icon size={15} strokeWidth={1.8} color={isActive ? B.purple : B.gray400} />
                 {t2.label}
               </Link>
             );
@@ -565,32 +567,6 @@ export default function AIWatchDXC() {
 
         {/* ── MAIN CONTENT ── */}
         <div style={{ flex:1, overflowY:"auto", background:B.white }}>
-
-          {/* Hero KPI strip */}
-          <div style={{ background:B.white, padding:"24px 28px", borderBottom:`1px solid ${B.gray100}` }}>
-            <div style={{ marginBottom:18 }}>
-              <h1 style={{ fontSize:20, fontWeight:800, color:B.gray900, letterSpacing:-0.3, marginBottom:4 }}>
-                Explore Intelligence
-              </h1>
-              <p style={{ fontSize:12, color:B.gray500 }}>Live monitoring across selected industries</p>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
-              {p.kpis.map((kpi, i) => (
-                <div key={i} className="fade" style={{
-                  background:B.gray50, border:`1px solid ${B.gray100}`,
-                  padding:"16px 18px", animationDelay:`${i*0.07}s`, borderRadius:4, boxShadow:"0 1px 3px rgba(0,0,0,0.05)",
-                }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-                    <span style={{ fontSize:10, fontWeight:700, color: kpi.up ? B.green : B.red, letterSpacing:0.5 }}>
-                      {kpi.up ? "▲" : "▼"} {kpi.delta}
-                    </span>
-                  </div>
-                  <div style={{ fontSize:26, fontWeight:800, color:p.tagColor, marginBottom:4, letterSpacing:-0.5 }}>{kpi.value}</div>
-                  <div style={{ fontSize:11, color:B.gray400, fontWeight:600, letterSpacing:0.3 }}>{kpi.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
 
           <Routes>
             <Route path="/" element={<Explore />} />

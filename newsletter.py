@@ -3,12 +3,19 @@ AI Watch - Newsletter Module
 V2: Generates and sends HTML newsletters via SMTP.
 """
 import os
+import sys
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from collections import Counter
 from dotenv import load_dotenv
+
+# Ensure stdout/stderr can handle Unicode on Windows
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 load_dotenv()
 
@@ -24,6 +31,87 @@ def get_smtp_config():
         'to_emails': os.getenv('NEWSLETTER_RECIPIENTS', '').split(',')
     }
     return config
+
+
+def generate_newsletter_html(articles, topic="All Topics", date_str=None):
+    """Generate clean HTML email matching the Newsletter Builder preview."""
+    if date_str is None:
+        date_str = datetime.now().strftime("%A, %B %d, %Y")
+
+    strong_count = sum(
+        1 for a in articles
+        if "STRONG" in str(a.get("signal", a.get("signal_type", a.get("signal_strength", "")))).upper()
+    )
+
+    articles_html = ""
+    for a in articles:
+        title_text = a.get("title", "Untitled")
+        source     = a.get("source", "Unknown")
+        date       = a.get("publishedAt", a.get("published_at", ""))
+        url        = a.get("url", a.get("link", "#")) or "#"
+        summary    = a.get("summary", a.get("description", ""))
+
+        try:
+            parsed = datetime.strptime(str(date)[:10], "%Y-%m-%d")
+            date = parsed.strftime("%b %d, %Y")
+        except Exception:
+            pass
+
+        summary_block = ""
+        if summary and str(summary).strip():
+            summary_block = (
+                f'<p style="margin:6px 0 0 0;font-size:13px;color:#4b5563;line-height:1.6;">'
+                f'{str(summary)[:200]}{"..." if len(str(summary)) > 200 else ""}</p>'
+            )
+
+        articles_html += (
+            f'<div style="padding:16px 0;border-bottom:1px solid #f3f4f6;">'
+            f'<a href="{url}" style="font-size:15px;font-weight:600;color:#111827;'
+            f'text-decoration:none;line-height:1.4;display:block;">{title_text}</a>'
+            f'{summary_block}'
+            f'<p style="margin:6px 0 0 0;font-size:11px;color:#9ca3af;">'
+            f'{source} &nbsp;&middot;&nbsp; {date}</p>'
+            f'</div>'
+        )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>AI Watch Brief</title>
+</head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:620px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 8px rgba(0,0,0,0.08);">
+
+    <!-- Header -->
+    <div style="background:#4c1d95;padding:36px 40px;">
+      <p style="margin:0 0 4px 0;font-size:11px;font-weight:700;color:#c4b5fd;letter-spacing:2px;text-transform:uppercase;">STRATEGIC INTELLIGENCE</p>
+      <h1 style="margin:0 0 8px 0;font-size:28px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">AI Watch Brief</h1>
+      <p style="margin:0;font-size:13px;color:#ddd6fe;">{topic} Edition &nbsp;&middot;&nbsp; {date_str}</p>
+    </div>
+
+    <!-- Summary bar -->
+    <div style="background:#f5f3ff;padding:20px 40px;border-bottom:1px solid #ede9fe;">
+      <p style="margin:0;font-size:13px;color:#6b21a8;line-height:1.6;">
+        Your curated AI intelligence brief featuring <strong>{len(articles)} signals</strong> from across the industry landscape &mdash; including <strong>{strong_count} strong signals</strong>.
+      </p>
+    </div>
+
+    <!-- Article list -->
+    <div style="padding:8px 40px 24px 40px;">
+      <p style="font-size:11px;font-weight:700;color:#7c3aed;letter-spacing:1.5px;text-transform:uppercase;margin:24px 0 4px 0;">EMERGING SIGNALS TO WATCH</p>
+      {articles_html}
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#f9fafb;border-top:1px solid #f3f4f6;padding:20px 40px;text-align:center;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;">AI Watch &nbsp;&middot;&nbsp; Strategic Intelligence Platform &nbsp;&middot;&nbsp; {len(articles)} articles &nbsp;&middot;&nbsp; {topic}</p>
+    </div>
+
+  </div>
+</body>
+</html>"""
 
 
 def generate_html_newsletter(sector_data, title="AI Watch Weekly Intelligence"):
@@ -473,31 +561,39 @@ def save_newsletter_html(html_content, output_dir="reports"):
 def send_newsletter(sector_data, subject=None):
     """
     Generate and send newsletter via SMTP.
-    
+
     Args:
-        sector_data: Dict of {sector_name: [summarized_articles]}
+        sector_data: Dict of {sector_name: [articles]} or flat list
         subject: Email subject (auto-generated if None)
-    
+
     Returns:
         True if sent successfully, False otherwise
     """
     config = get_smtp_config()
-    
+
+    # Flatten sector_data into a single article list
+    if isinstance(sector_data, dict):
+        articles_list = [a for arts in sector_data.values() for a in arts]
+        topic_name = ", ".join(sector_data.keys()) if sector_data else "All Topics"
+    else:
+        articles_list = list(sector_data)
+        topic_name = "All Topics"
+
     # Validate config
     if not config['username'] or not config['password']:
-        print("⚠️ SMTP not configured. Saving HTML file only.")
-        html = generate_html_newsletter(sector_data)
+        print("SMTP not configured. Saving HTML file only.")
+        html = generate_newsletter_html(articles_list, topic=topic_name)
         save_newsletter_html(html)
         return False
-    
+
     if not config['to_emails'] or config['to_emails'] == ['']:
-        print("⚠️ No recipients configured (NEWSLETTER_RECIPIENTS not set)")
-        html = generate_html_newsletter(sector_data)
+        print("No recipients configured (NEWSLETTER_RECIPIENTS not set)")
+        html = generate_newsletter_html(articles_list, topic=topic_name)
         save_newsletter_html(html)
         return False
-    
-    # Generate content
-    html = generate_html_newsletter(sector_data)
+
+    # Generate content using the new clean template
+    html = generate_newsletter_html(articles_list, topic=topic_name)
     
     # Save a copy
     save_newsletter_html(html)
@@ -521,8 +617,8 @@ View this email in HTML for the best experience.
 Generated by AI Watch v2.0
 """
     
-    msg.attach(MIMEText(plain_text, 'plain'))
-    msg.attach(MIMEText(html, 'html'))
+    msg.attach(MIMEText(plain_text, 'plain', 'utf-8'))
+    msg.attach(MIMEText(html, 'html', 'utf-8'))
     
     # Send
     try:

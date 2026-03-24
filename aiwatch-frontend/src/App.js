@@ -10,10 +10,10 @@ import Newsletter from "./pages/Newsletter";
 import Matching from "./pages/Matching";
 
 const B = {
-  purple:      "#6B2C94",
-  purpleDeep:  "#4a1870",
-  purpleLight: "#8B3DB5",
-  purplePale:  "#f5eefb",
+  purple:      "#6C47FF",
+  purpleDeep:  "#4a30cc",
+  purpleLight: "#8B72FF",
+  purplePale:  "#f0edff",
   purpleMid:   "#ede0f7",
   black:       "#000000",
   darkBg:      "#0a0a0a",
@@ -456,12 +456,12 @@ export default function AIWatchDXC() {
   const liveColor = health.status === "online" ? B.green : health.status === "offline" ? B.red : B.amber;
 
   const navTabs = [
-    { id:"feed",       label:"Explore",        path:"/",             Icon: Compass   },
-    { id:"radar",      label:"Solutions",      path:"/solutions",    Icon: Lightbulb },
-    { id:"matching",   label:"Matching",       path:"/matching",     Icon: Target    },
-    { id:"data",       label:"Data Preview",   path:"/data-preview", Icon: BarChart2 },
-    { id:"reports",    label:"Reports",        path:"/reports",      Icon: FileText  },
-    { id:"newsletter", label:"Newsletter",     path:"/newsletter",   Icon: Mail      },
+    { id:"feed",       label:"News Feed",       path:"/",             Icon: Compass,   desc:"Browse and filter live articles"    },
+    { id:"radar",      label:"Solutions",       path:"/solutions",    Icon: Lightbulb, desc:"DXC product recommendations"        },
+    { id:"matching",   label:"Solutions Match", path:"/matching",     Icon: Target,    desc:"Match signals to DXC products"      },
+    { id:"data",       label:"Data Table",      path:"/data-preview", Icon: BarChart2, desc:"Sort and export article data"       },
+    { id:"reports",    label:"My Reports",      path:"/reports",      Icon: FileText,  desc:"Save and download PDF reports"      },
+    { id:"newsletter", label:"Newsletter",      path:"/newsletter",   Icon: Mail,      desc:"Compose and send intelligence briefs"},
   ];
 
   const location = useLocation();
@@ -510,20 +510,11 @@ export default function AIWatchDXC() {
         display:"flex", alignItems:"center", padding:"0 28px", justifyContent:"space-between",
         position:"sticky", top:0, zIndex:100, borderBottom:`1px solid ${B.gray100}`,
       }}>
-        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <span style={{ fontSize:24, fontWeight:800, color:B.gray900, letterSpacing:-0.6, fontFamily:"'Open Sans',sans-serif", lineHeight:1 }}>AI Watch</span>
-          <div style={{ width:1, height:24, background:B.gray200 }} />
-          <span style={{ fontSize:11, fontWeight:700, color:B.gray500, letterSpacing:1.8, textTransform:"uppercase" }}>Strategic Monitor</span>
           <div style={{ display:"flex", alignItems:"center", gap:5, border:`1px solid ${liveColor}40`, borderRadius:2, padding:"3px 9px" }}>
             <div style={{ width:6, height:6, borderRadius:"50%", background:liveColor, animation:"pulse 2s infinite" }} />
             <span style={{ fontSize:10, fontWeight:700, color:liveColor, letterSpacing:1 }}>{liveStatus}</span>
-          </div>
-        </div>
-
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ textAlign:"right" }}>
-            <div style={{ fontSize:12, fontWeight:700, color:B.gray900 }}>{activeIndustry.label}</div>
-            <div style={{ fontSize:10, color:B.gray500 }}>Industry Lens</div>
           </div>
         </div>
       </div>
@@ -546,7 +537,7 @@ export default function AIWatchDXC() {
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = B.gray50; }}
                 onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                 style={{
-                  display:"flex", alignItems:"center", gap:10,
+                  display:"flex", alignItems:"flex-start", gap:10,
                   padding:"10px 16px", border:"none",
                   borderLeft:`3px solid ${isActive ? B.purple : "transparent"}`,
                   background: isActive ? B.purplePale : "transparent",
@@ -556,8 +547,15 @@ export default function AIWatchDXC() {
                   textDecoration:"none",
                 }}
               >
-                <t2.Icon size={15} strokeWidth={1.8} color={isActive ? B.purple : B.gray400} />
-                {t2.label}
+                <t2.Icon size={15} strokeWidth={1.8} color={isActive ? B.purple : B.gray400} style={{ marginTop: 1, flexShrink: 0 }} />
+                <div>
+                  <div>{t2.label}</div>
+                  {isActive && (
+                    <div style={{ fontSize:11, color: B.purple, fontWeight:400, marginTop:2, opacity:0.75, lineHeight:1.4 }}>
+                      {t2.desc}
+                    </div>
+                  )}
+                </div>
               </Link>
             );
           })}

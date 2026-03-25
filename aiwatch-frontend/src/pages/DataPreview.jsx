@@ -11,7 +11,7 @@ import { getArticles } from "../services/api";
 
 const B = {
   purple: "#6B2C94",
-  purpleDeep: "#4a1870",
+  purpleDeep: "#4A1870",
   purplePale: "#f5eefb",
   white: "#ffffff",
   gray50: "#fafafa",
@@ -674,7 +674,7 @@ function FundingAndActors() {
 }
 
 export default function DataPreview() {
-  const [activeTab, setActiveTab] = useState("table");
+  const [activeTab, setActiveTab] = useState("charts");
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -700,8 +700,8 @@ export default function DataPreview() {
   }, [searchQuery, fetchArticles]);
 
   const tabs = [
-    { id: "table", label: "Data Table" },
     { id: "charts", label: "Charts" },
+    { id: "table", label: "Data Table" },
     { id: "funding", label: "Funding & Actors" },
   ];
 

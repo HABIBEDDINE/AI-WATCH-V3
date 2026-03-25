@@ -1,6 +1,6 @@
 const B = {
   purple: "#6B2C94",
-  purpleDeep: "#4a1870",
+  purpleDeep: "#4A1870",
   purplePale: "#f5eefb",
   white: "#ffffff",
   gray200: "#e8e8e8",

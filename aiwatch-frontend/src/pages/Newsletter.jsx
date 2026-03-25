@@ -3,9 +3,9 @@ import { getArticles, getNewsletterStatus, sendNewsletterNow, subscribeEmail, un
 
 const B = {
   purple: "#6B2C94",
-  purpleDeep: "#4a1870",
+  purpleDeep: "#4A1870",
   purplePale: "#f5eefb",
-  purpleMid: "#e0cff0",
+  purpleMid: "#ede0f7",
   white: "#ffffff",
   gray50: "#fafafa",
   gray100: "#f4f4f4",

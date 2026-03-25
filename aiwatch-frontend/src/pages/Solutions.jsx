@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-const ACCENT    = "#6C47FF";
-const ACCENT_BG = "#f0edff";
+const ACCENT    = "#6B2C94";
+const ACCENT_BG = "#f5eefb";
 
 const B = {
   white:   "#ffffff",

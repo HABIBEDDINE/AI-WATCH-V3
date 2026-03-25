@@ -10,10 +10,10 @@ import Newsletter from "./pages/Newsletter";
 import Matching from "./pages/Matching";
 
 const B = {
-  purple:      "#6C47FF",
-  purpleDeep:  "#4a30cc",
+  purple:      "#6B2C94",
+  purpleDeep:  "#4A1870",
   purpleLight: "#8B72FF",
-  purplePale:  "#f0edff",
+  purplePale:  "#f5eefb",
   purpleMid:   "#ede0f7",
   black:       "#000000",
   darkBg:      "#0a0a0a",

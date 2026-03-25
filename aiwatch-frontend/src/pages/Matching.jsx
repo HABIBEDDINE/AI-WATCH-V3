@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 const B = {
   purple:      "#6B2C94",
-  purpleDeep:  "#4a1870",
+  purpleDeep:  "#4A1870",
   purpleLight: "#8B3DB5",
   purplePale:  "#f5eefb",
   purpleMid:   "#ede0f7",

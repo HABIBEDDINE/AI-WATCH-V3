@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { getReports, getReport, deleteReport, getArticles, saveReport } from "../services/api";
 import { jsPDF } from "jspdf";
 
-const ACCENT    = "#6C47FF";
-const ACCENT_BG = "#f0edff";
+const ACCENT    = "#6B2C94";
+const ACCENT_BG = "#f5eefb";
 
 const B = {
   purple:     ACCENT,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const ACCENT    = "#6B2C94";
 const ACCENT_BG = "#f5eefb";
@@ -96,22 +96,6 @@ function SolutionCard({ solution, rank }) {
         {solution.description}
       </p>
 
-      {/* Match score */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: B.gray400, letterSpacing: 0.3, textTransform: "uppercase" }}>Match Score</span>
-          <span style={{ fontSize: 14, fontWeight: 800, color: ACCENT }}>{solution.score}%</span>
-        </div>
-        <div style={{ height: 5, background: B.gray100, borderRadius: 99, overflow: "hidden" }}>
-          <div style={{
-            width: `${solution.score}%`, height: "100%",
-            background: `linear-gradient(90deg, ${ACCENT}99, ${ACCENT})`,
-            borderRadius: 99,
-            transition: "width 0.6s ease",
-          }} />
-        </div>
-      </div>
-
       {/* Metadata */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
         <span style={{ fontSize: 11, color: B.gray500, background: B.gray100, padding: "3px 10px", borderRadius: 999 }}>
@@ -149,6 +133,12 @@ function SolutionCard({ solution, rank }) {
 
 export default function Solutions() {
   const [activeFilter, setActiveFilter] = useState("All");
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   const filtered = activeFilter === "All"
     ? SOLUTIONS
@@ -160,7 +150,7 @@ export default function Solutions() {
   }, {});
 
   return (
-    <div style={{ background: B.white, padding: "28px 28px 48px", minHeight: "100%" }}>
+    <div style={{ background: B.white, padding: isMobile ? "16px 16px 40px" : "28px 28px 48px", minHeight: "100%" }}>
 
       {/* ── Header ── */}
       <div style={{ marginBottom: 24 }}>
@@ -227,11 +217,12 @@ export default function Solutions() {
       <div style={{
         border: `1px solid ${B.gray200}`,
         borderRadius: 10,
-        padding: "32px 36px",
+        padding: isMobile ? "24px 20px" : "32px 36px",
         display: "flex",
+        flexDirection: isMobile ? "column" : "row",
         justifyContent: "space-between",
-        alignItems: "center",
-        gap: 24,
+        alignItems: isMobile ? "stretch" : "center",
+        gap: 20,
         background: B.gray50,
       }}>
         <div>
@@ -242,7 +233,7 @@ export default function Solutions() {
             Our DXC Data & AI team offers a tailored 30-minute discovery session to align the right solutions with your priorities.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10 }}>
           <button
             onMouseEnter={e => { e.currentTarget.style.background = "#5535e0"; }}
             onMouseLeave={e => { e.currentTarget.style.background = ACCENT; }}

@@ -880,6 +880,12 @@ export default function Reports() {
   const [refreshKey,         setRefreshKey]          = useState(0);
   const [showGenerateModal,  setShowGenerateModal]   = useState(false);
   const [showDailyModal,     setShowDailyModal]      = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   const handleReportDeleted = () => {
     setSelectedReportId(null);
@@ -891,14 +897,14 @@ export default function Reports() {
   };
 
   return (
-    <div style={{ background: B.white, padding: "24px 28px", minHeight: "100%" }}>
+    <div style={{ background: B.white, padding: isMobile ? "16px" : "24px 28px", minHeight: "100%" }}>
       {!selectedReportId && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "flex-start", gap: 12, marginBottom: 24 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: B.gray900, letterSpacing: -0.3, marginBottom: 4 }}>My Reports</h1>
+            <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: B.gray900, letterSpacing: -0.3, marginBottom: 4 }}>My Reports</h1>
             <p style={{ fontSize: 13, color: B.gray500 }}>Generate, save, and download intelligence reports as PDF.</p>
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               onClick={() => setShowDailyModal(true)}
               onMouseEnter={e => { e.currentTarget.style.background = ACCENT_BG; e.currentTarget.style.color = ACCENT; }}

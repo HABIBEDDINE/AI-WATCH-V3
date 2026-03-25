@@ -48,7 +48,7 @@ function ArticleCard({ article }) {
   const isStrong = article.signal_strength === "Strong";
   const title    = cleanText(article.title);
   const rawSum   = cleanText(article.summary || "");
-  const summary  = !rawSum || rawSum === title ? "Summary not yet generated." : rawSum;
+  const summary  = !rawSum || rawSum === title ? "Summary not available." : rawSum;
   const industry = article.topic || article.search_topic || article.industry || "General";
   const date     = article.published_at
     ? new Date(article.published_at).toLocaleDateString()
@@ -77,11 +77,11 @@ function ArticleCard({ article }) {
       }}
     >
       {/* Title + Signal badge */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, marginBottom: 10 }}>
+      <div className="article-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, marginBottom: 10 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: B.gray900, lineHeight: 1.4, flex: 1 }}>
           {title}
         </div>
-        <span style={{
+        <span className="signal-badge" style={{
           flexShrink: 0,
           fontSize: 10,
           fontWeight: 700,
@@ -120,6 +120,13 @@ function ArticleCard({ article }) {
 }
 
 export default function Explore() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+
   const [articles, setArticles]             = useState([]);
   const [loading,  setLoading]              = useState(false);
   const [error,    setError]                = useState(null);
@@ -323,14 +330,43 @@ export default function Explore() {
     : "—";
 
   return (
-    <div style={{ background: B.white, padding: "24px 28px", minHeight: "100%" }}>
+    <div style={{ background: B.white, padding: isMobile ? "16px" : "24px 28px", minHeight: "100%" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Article card: badge on its own line below title on mobile */
+        @media (max-width: 768px) {
+          .article-card-header {
+            flex-direction: column !important;
+            gap: 6px !important;
+          }
+          .signal-badge {
+            align-self: flex-start !important;
+            margin-top: 0 !important;
+          }
+        }
+
+        /* Pagination: stack into two rows on small phones */
+        @media (max-width: 480px) {
+          .pagination-bar {
+            flex-direction: column !important;
+            gap: 10px !important;
+            padding: 12px 14px !important;
+          }
+          .pagination-nav {
+            display: flex !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+          }
+          .pagination-page-info {
+            text-align: center !important;
+          }
+        }
       `}</style>
 
       {/* ── PAGE HEADER ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: B.gray900, letterSpacing: -0.3, margin: 0 }}>
+      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 10 : 16, marginBottom: 20 }}>
+        <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: B.gray900, letterSpacing: -0.3, margin: 0 }}>
           Explore Intelligence
         </h1>
         <button
@@ -368,16 +404,16 @@ export default function Explore() {
       </div>
 
       {/* ── KPI STRIP (3 cards) ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: isMobile ? 8 : 12, marginBottom: 20 }}>
         <StatCard label="Articles Today"  value={totalCount} />
         <StatCard label="Strong Signals"  value={strongCount} />
         <StatCard label="Avg Relevance"   value={articles.length ? `${avgRelevance}/10` : "—"} />
       </div>
 
       {/* ── MERGED TOOLBAR: search left, topic chips right ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", gap: 10, marginBottom: 20 }}>
         {/* Search */}
-        <div style={{ position: "relative", flexShrink: 0, width: 260 }}>
+        <div style={{ position: "relative", flexShrink: 0, width: isMobile ? "100%" : 260 }}>
           <Search
             size={14}
             strokeWidth={1.8}
@@ -403,8 +439,8 @@ export default function Explore() {
           />
         </div>
 
-        {/* Topic filter chips — scrollable */}
-        <div style={{ flex: 1, overflowX: "auto", display: "flex", gap: 6, minWidth: 0, paddingBottom: 2 }}>
+        {/* Topic filter chips — wrap on mobile, scroll on desktop */}
+        <div style={{ flex: 1, overflowX: isMobile ? "visible" : "auto", display: "flex", gap: 6, flexWrap: isMobile ? "wrap" : "nowrap", minWidth: 0, paddingBottom: 2 }}>
           {TOPICS.map(topic => {
             const active = selectedTopic === topic;
             return (
@@ -512,7 +548,7 @@ export default function Explore() {
 
       {/* ── PAGINATION ── */}
       {!loading && articles.length > 0 && (
-        <div style={{
+        <div className="pagination-bar" style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -543,11 +579,11 @@ export default function Explore() {
             ))}
           </div>
 
-          <span style={{ fontSize: 12, color: B.gray500 }}>
+          <span className="pagination-page-info" style={{ fontSize: 12, color: B.gray500 }}>
             Page {currentPage} of {totalPages}
           </span>
 
-          <div style={{ display: "flex", gap: 6 }}>
+          <div className="pagination-nav" style={{ display: "flex", gap: 6 }}>
             <button
               onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}

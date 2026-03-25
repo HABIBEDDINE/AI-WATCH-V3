@@ -29,6 +29,89 @@ PRESET_SECTORS = {
 }
 
 
+def _is_valid_summary(summary: str, title: str) -> bool:
+    """
+    Return True only when summary is distinct, meaningful content.
+
+    Rejects:
+    - empty / whitespace-only
+    - exact title match or too short
+    - Google News RSS pattern where description = "Headline Source"
+      and title = "Headline - Source" (same text, different separator)
+    """
+    if not summary or not summary.strip():
+        return False
+    s = summary.strip()
+    t = (title or "").strip()
+    s_lo = s.lower()
+    t_lo = t.lower()
+
+    if s_lo == t_lo or len(s) <= 30:
+        return False
+
+    # Exact-prefix check: description starts with full title + small suffix
+    if t_lo and s_lo.startswith(t_lo) and (len(s) - len(t)) < 80:
+        return False
+
+    # Google News RSS pattern: title = "Headline - Source", desc = "Headline Source"
+    # Strip the " - Source" / " | Source" / " — Source" tail from the title
+    core = re.split(r'\s+[-–—|]\s+', t_lo)[0].strip()
+    if core and len(core) > 20 and s_lo.startswith(core) and (len(s) - len(core)) < 80:
+        return False
+
+    return True
+
+
+_BOILERPLATE_PHRASES = (
+    "cookie", "subscribe", "sign in", "log in", "accept all", "reject all",
+    "privacy policy", "terms of service", "we use cookies", "consent",
+    "if you choose", "advertisement", "create an account", "already a subscriber",
+)
+
+
+def scrape_summary(url: str, timeout: int = 5) -> str:
+    """
+    Scrape the first 2-3 meaningful sentences from <p> tags at `url`.
+    Returns 'Summary not available.' on any failure, timeout, or
+    when the URL is a Google News redirect (which hits consent.google.com).
+    """
+    if not url:
+        return "Summary not available."
+    # Google News redirect URLs always land on consent.google.com — skip them
+    if "news.google.com" in url:
+        return "Summary not available."
+    try:
+        from bs4 import BeautifulSoup
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            )
+        }
+        resp = requests.get(url, timeout=timeout, verify=False, headers=headers)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
+            tag.decompose()
+        sentences = []
+        for p in soup.find_all("p"):
+            text = p.get_text(separator=" ", strip=True)
+            text_lo = text.lower()
+            # Skip short fragments and boilerplate
+            if len(text) < 50:
+                continue
+            if any(phrase in text_lo for phrase in _BOILERPLATE_PHRASES):
+                continue
+            sentences.append(text)
+            if len(sentences) >= 3:
+                break
+        if sentences:
+            return " ".join(sentences)[:500]
+        return "Summary not available."
+    except Exception:
+        return "Summary not available."
+
+
 def get_api_key():
     """Get NewsAPI key from environment."""
     api_key = os.getenv('NEWS_API_KEY')
@@ -140,17 +223,31 @@ def fetch_google_news_rss(query, max_results=15):
             title = entry.get('title', 'No title')
             
             # Extract description from summary if available
-            description = entry.get('summary', '')
-            
-            # Clean HTML from description
+            description = entry.get('summary', '') or entry.get('description', '')
+
+            # Clean HTML tags and decode &nbsp; entities
             description = re.sub(r'<[^>]+>', '', description)
-            
+            description = description.replace('\xa0', ' ').replace('&nbsp;', ' ')
+            description = re.sub(r'\s+', ' ', description).strip()
+
+            # Discard if it's just the title (exact or "Title  Source" Google News pattern)
+            t_lo = title.lower().strip()
+            d_lo = description.lower().strip()
+            if d_lo == t_lo or (t_lo and d_lo.startswith(t_lo) and len(description) - len(title) < 80):
+                description = ''
+
+            # Use the real publisher URL (source.href) when available so the
+            # scraper doesn't hit the Google News redirect / consent wall
+            source_info = entry.get('source', {})
+            source_name = source_info.get('title', 'Google News')
+            real_url = entry.get('link', '')  # Google redirect — scraper will skip it
+
             articles.append({
                 'title': title,
-                'description': description[:200],  # Limit to 200 chars
+                'description': description[:500],
                 'content': description,
-                'url': entry.get('link', ''),
-                'source': 'Google News',
+                'url': real_url,
+                'source': source_name,
                 'published_at': entry.get('published', ''),
                 'image_url': '',
                 'source_api': 'google_news_rss'
@@ -450,28 +547,42 @@ def run_ingest_fast(topic: str = None, limit: int = 20):
         
         logger.info(f"   ✓ Deduplicated: {len(all_raw_articles)} → {len(deduplicated)}")
         
-        # 2. Quick formatting WITHOUT summarization
+        # 2. Resolve summaries — use description if valid, else scrape the URL
+        candidates = deduplicated[:limit * 2]
+
+        def _resolve_summary(article):
+            raw = (article.get('description', '') or article.get('content', '')).strip()
+            # Decode common HTML entities that sneak in from NewsAPI/NewsData
+            raw = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), raw)
+            raw = raw.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>') \
+                     .replace('&quot;', '"').replace('&#39;', "'").replace('&nbsp;', ' ')
+            title_text = article.get('title', '')
+            if _is_valid_summary(raw, title_text):
+                return raw[:500]
+            url_to_scrape = article.get('url', '') or article.get('link', '')
+            return scrape_summary(url_to_scrape)
+
+        logger.info(f"   🔍 Resolving summaries for {len(candidates)} articles...")
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            resolved_summaries = list(ex.map(_resolve_summary, candidates))
+
+        # 3. Format articles with resolved summaries
+        import hashlib, random
         processed_articles = []
-        for idx, article in enumerate(deduplicated[:limit * 2], 1):  # Keep more articles after dedup
+        for idx, (article, summary) in enumerate(zip(candidates, resolved_summaries), 1):
             try:
-                # Generate a unique ID
-                import hashlib
                 article_id = hashlib.md5(
                     f"{article.get('title', '')}{article.get('url', '')}".encode()
                 ).hexdigest()[:12]
-                
-                # Basic relevance score (random for now, can be improved)
-                import random
+
                 relevance = random.randint(6, 10)
-                
-                # Determine source API
                 source_api = article.get('source_api', 'Unknown')
-                
+
                 formatted_article = {
                     'id': article_id,
                     'title': article.get('title', 'No title'),
-                    'description': article.get('description', '')[:200],
-                    'summary': article.get('description', '')[:200],
+                    'description': summary,
+                    'summary': summary,
                     'url': article.get('url', ''),
                     'link': article.get('url', ''),
                     'source': article.get('source', 'Unknown'),
@@ -486,9 +597,9 @@ def run_ingest_fast(topic: str = None, limit: int = 20):
                     'industry': topic,
                     'market_segment': topic,
                 }
-                
+
                 processed_articles.append(formatted_article)
-                
+
             except Exception as e:
                 logger.error(f"   ⚠️  Error processing article {idx}: {e}")
                 continue

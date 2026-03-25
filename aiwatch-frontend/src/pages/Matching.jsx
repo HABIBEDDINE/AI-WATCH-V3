@@ -893,12 +893,18 @@ function MaturityGauge({ score }) {
 
 function NeedsAnalysis({ profile, answers }) {
   const { maturityScore, urgency, urgencyColor, findings, narrative, benchmark, industryLabel, goalLabel, sizeLabel } = profile;
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   return (
     <div style={{ marginBottom: 36 }}>
       {/* Header card */}
       <div style={{
-        background: B.purplePale, borderRadius: 6, padding: "28px 32px", marginBottom: 20,
+        background: B.purplePale, borderRadius: 6, padding: isMobile ? "20px 16px" : "28px 32px", marginBottom: 20,
         border: `1px solid ${B.purple}22`, borderLeft: `4px solid ${B.purple}`,
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 24, marginBottom: 20 }}>
@@ -926,7 +932,7 @@ function NeedsAnalysis({ profile, answers }) {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 16 }}>
         {/* Key findings */}
         <div style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 6, padding: "20px 22px" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: B.gray500, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 14 }}>
@@ -1022,6 +1028,12 @@ function ScoreBreakdown({ dims }) {
 
 function MatchCard({ solution, rank, answers }) {
   const [tab, setTab] = useState("overview");
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
   const isTop = rank === 0;
 
   const fitLabel = solution.matchScore >= 90 ? "Excellent Match"
@@ -1073,7 +1085,7 @@ function MatchCard({ solution, rank, answers }) {
         </div>
       )}
 
-      <div style={{ padding: "22px 24px" }}>
+      <div style={{ padding: isMobile ? "16px" : "22px 24px" }}>
         {/* Header row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
           <div>
@@ -1567,6 +1579,12 @@ function Results({ answers, matches, onRestart }) {
   const profile = generateProfile(answers);
   const top5 = matches.slice(0, 5);
   const allOthers = matches.slice(5);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   return (
     <div>
@@ -1663,7 +1681,7 @@ function Results({ answers, matches, onRestart }) {
       {/* CTA Banner */}
       <div style={{
         background: B.purplePale, borderLeft: `4px solid ${B.purple}`,
-        border: `1px solid ${B.purple}22`, borderRadius: 4, padding: "32px",
+        border: `1px solid ${B.purple}22`, borderRadius: 4, padding: isMobile ? "20px 16px" : "32px",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 24 }}>
           <div style={{ flex: 1, minWidth: 240 }}>
@@ -1707,6 +1725,12 @@ export default function Matching() {
   const [answers, setAnswers] = useState({});
   const [phase, setPhase] = useState("questions"); // questions | analyzing | results
   const [matches, setMatches] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   function handleChange(key, value) {
     setAnswers(prev => ({ ...prev, [key]: value }));
@@ -1737,14 +1761,14 @@ export default function Matching() {
 
   return (
     <div style={{ minHeight: "100vh", background: B.white }}>
-      <div style={{ padding: "24px 32px 20px", borderBottom: `1px solid ${B.gray200}` }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: B.gray900, marginBottom: 4 }}>Solution Matching</h1>
+      <div style={{ padding: isMobile ? "16px 16px 14px" : "24px 32px 20px", borderBottom: `1px solid ${B.gray200}` }}>
+        <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: B.gray900, marginBottom: 4 }}>Solution Matching</h1>
         <p style={{ fontSize: 13, color: B.gray500 }}>
           Answer 7 questions and receive a personalised needs analysis with matched DXC solutions.
         </p>
       </div>
 
-      <div style={{ maxWidth: phase === "results" ? 900 : 620, margin: "0 auto", padding: "40px 24px" }}>
+      <div style={{ maxWidth: phase === "results" ? 900 : 620, margin: "0 auto", padding: isMobile ? "24px 16px" : "40px 24px" }}>
         {phase === "questions" && (
           <>
             <ProgressBar step={stepIndex + 1} total={STEPS.length} />

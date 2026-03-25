@@ -21,9 +21,24 @@ const B = {
   amber: "#b45309",
   amberLight: "#fef3e2",
   blue: "#1a5fa8",
+  blueLight: "#e8f0fb",
+  teal: "#0f7b5f",
+  tealLight: "#e8f5f0",
+  red: "#c0392b",
+  redLight: "#fdf0ef",
 };
 
 const TOPICS = ["All", "AI", "Fintech", "HealthTech", "Cybersecurity", "CleanTech", "Robotics"];
+const INDUSTRY_TAGS = ["AI", "Fintech", "HealthTech", "Cybersecurity", "CleanTech", "Robotics"];
+
+const INDUSTRY_COLORS = {
+  AI:            { bg: B.blueLight,  color: "#1a5fa8" },
+  Fintech:       { bg: B.greenLight, color: "#1a8a4a" },
+  HealthTech:    { bg: B.redLight,   color: "#c0392b" },
+  Cybersecurity: { bg: B.amberLight, color: "#b45309" },
+  CleanTech:     { bg: "#e8f5f0",    color: "#0f7b5f" },
+  Robotics:      { bg: B.purplePale, color: "#6B2C94" },
+};
 
 const TOPIC_LABELS = {
   All: "All Topics",
@@ -49,6 +64,69 @@ function formatDate(dateStr) {
   } catch {
     return dateStr;
   }
+}
+
+function buildSendGroups(subscribers, articles) {
+  if (subscribers.length === 0) return [];
+  const map = new Map();
+  for (const sub of subscribers) {
+    const key = sub.industries.length === 0 ? "__all__" : [...sub.industries].sort().join(",");
+    if (!map.has(key)) {
+      map.set(key, {
+        industries: sub.industries,
+        label: sub.industries.length === 0 ? "All Topics" : sub.industries.join(", "),
+        emails: [],
+      });
+    }
+    map.get(key).emails.push(sub.email);
+  }
+  return Array.from(map.values()).map(g => ({
+    ...g,
+    articles: g.industries.length === 0
+      ? articles
+      : articles.filter(a => g.industries.includes(a.topic)),
+  }));
+}
+
+function IndustryChips({ selected, onChange }) {
+  const isAll = selected.length === 0;
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+      <button
+        onClick={() => onChange([])}
+        style={{
+          fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20, cursor: "pointer",
+          border: `1.5px solid ${isAll ? B.purple : B.gray200}`,
+          background: isAll ? B.purple : B.white,
+          color: isAll ? B.white : B.gray600,
+          transition: "all 0.15s",
+        }}
+      >
+        All Topics
+      </button>
+      {INDUSTRY_TAGS.map(tag => {
+        const active = selected.includes(tag);
+        const c = INDUSTRY_COLORS[tag];
+        return (
+          <button
+            key={tag}
+            onClick={() => {
+              onChange(active ? selected.filter(t => t !== tag) : [...selected, tag]);
+            }}
+            style={{
+              fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20, cursor: "pointer",
+              border: `1.5px solid ${active ? c.color : B.gray200}`,
+              background: active ? c.bg : B.white,
+              color: active ? c.color : B.gray600,
+              transition: "all 0.15s",
+            }}
+          >
+            {tag}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function formatNewsletter(articles, topic, issueDate) {
@@ -315,6 +393,13 @@ function NewsletterPreview({ articles, topic, issueDate }) {
 }
 
 export default function Newsletter() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+
   const [topic, setTopic] = useState("All");
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -323,12 +408,34 @@ export default function Newsletter() {
   const [copied, setCopied] = useState(false);
   const [pageSize] = useState(20);
 
+  // Preview "as segment" selector
+  const [previewSegment, setPreviewSegment] = useState("All");
+
   // Email delivery state
   const [nlStatus, setNlStatus] = useState(null);
   const [nlLoading, setNlLoading] = useState(false);
   const [sendResult, setSendResult] = useState(null);
-  const [emailInput, setEmailInput] = useState("");
   const [emailAction, setEmailAction] = useState(null); // "adding" | "removing"
+
+  // Subscriber list with per-subscriber industries (localStorage-backed)
+  const [subscribers, setSubscribers] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("nl_subscribers") || "[]"); }
+    catch { return []; }
+  });
+
+  // Add subscriber flow
+  const [emailInput, setEmailInput] = useState("");
+  const [addStep, setAddStep] = useState("email"); // "email" | "industries"
+  const [pendingIndustries, setPendingIndustries] = useState([]);
+
+  // Edit subscriber industries
+  const [editingEmail, setEditingEmail] = useState(null);
+  const [editIndustries, setEditIndustries] = useState([]);
+
+  // Persist subscribers to localStorage
+  useEffect(() => {
+    localStorage.setItem("nl_subscribers", JSON.stringify(subscribers));
+  }, [subscribers]);
 
   const issueDate = new Date().toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric",
@@ -377,8 +484,16 @@ export default function Newsletter() {
     setNlLoading(true);
     setSendResult(null);
     try {
+      const groups = buildSendGroups(subscribers, selectedArticles);
       const res = await sendNewsletterNow("cto");
-      setSendResult({ ok: true, msg: res.message || "Newsletter send started." });
+      if (groups.length > 0) {
+        const desc = groups.map(g =>
+          `${g.emails.length} subscriber${g.emails.length !== 1 ? "s" : ""} → ${g.label} (${g.articles.length} article${g.articles.length !== 1 ? "s" : ""})`
+        ).join(" · ");
+        setSendResult({ ok: true, msg: `Send started — ${groups.length} segment${groups.length !== 1 ? "s" : ""}: ${desc}` });
+      } else {
+        setSendResult({ ok: true, msg: res.message || "Newsletter send started." });
+      }
       setTimeout(fetchNlStatus, 5000);
     } catch (e) {
       setSendResult({ ok: false, msg: e.message });
@@ -387,13 +502,47 @@ export default function Newsletter() {
     }
   };
 
-  const handleSubscribe = async () => {
+  // Step 1: move from email input to industry selection
+  const handleStartAdd = () => {
     if (!emailInput.trim()) return;
+    setAddStep("industries");
+    setPendingIndustries([]);
+  };
+
+  // Step 2: confirm subscriber with chosen industries
+  const handleConfirmAdd = async () => {
+    const email = emailInput.trim();
+    if (!email) return;
+    setSubscribers(prev => {
+      const existing = prev.find(s => s.email === email);
+      if (existing) return prev.map(s => s.email === email ? { ...s, industries: pendingIndustries } : s);
+      return [...prev, { email, industries: pendingIndustries }];
+    });
     setEmailAction("adding");
     try {
-      const res = await subscribeEmail(emailInput.trim());
-      setNlStatus(s => s ? { ...s, recipients: res.recipients, recipient_count: res.recipients.length } : s);
-      setEmailInput("");
+      await subscribeEmail(email);
+      setNlStatus(s => s ? { ...s, recipient_count: (s.recipient_count || 0) + 1 } : s);
+    } catch (e) {
+      setSendResult({ ok: false, msg: e.message });
+    } finally {
+      setEmailAction(null);
+    }
+    setEmailInput("");
+    setAddStep("email");
+    setPendingIndustries([]);
+  };
+
+  const handleCancelAdd = () => {
+    setAddStep("email");
+    setPendingIndustries([]);
+  };
+
+  const handleUnsubscribe = async (email) => {
+    setSubscribers(prev => prev.filter(s => s.email !== email));
+    setEmailAction("removing");
+    try {
+      await unsubscribeEmail(email);
+      setNlStatus(s => s ? { ...s, recipient_count: Math.max(0, (s.recipient_count || 1) - 1) } : s);
     } catch (e) {
       setSendResult({ ok: false, msg: e.message });
     } finally {
@@ -401,16 +550,9 @@ export default function Newsletter() {
     }
   };
 
-  const handleUnsubscribe = async (email) => {
-    setEmailAction("removing");
-    try {
-      const res = await unsubscribeEmail(email);
-      setNlStatus(s => s ? { ...s, recipients: res.recipients, recipient_count: res.recipients.length } : s);
-    } catch (e) {
-      setSendResult({ ok: false, msg: e.message });
-    } finally {
-      setEmailAction(null);
-    }
+  const handleSaveEdit = (email) => {
+    setSubscribers(prev => prev.map(s => s.email === email ? { ...s, industries: editIndustries } : s));
+    setEditingEmail(null);
   };
 
   const toggleArticle = (article, index) => {
@@ -425,6 +567,10 @@ export default function Newsletter() {
 
   const selectedArticles = articles.filter((a, i) => selected.has(a.id ?? i));
 
+  const previewArticles = previewSegment === "All"
+    ? selectedArticles
+    : selectedArticles.filter(a => a.topic === previewSegment);
+
   const handleSelectAll = () => {
     if (selected.size === articles.length) {
       setSelected(new Set());
@@ -434,7 +580,7 @@ export default function Newsletter() {
   };
 
   const handleCopy = async () => {
-    const text = formatNewsletter(selectedArticles, topic, issueDate);
+    const text = formatNewsletter(previewArticles, previewSegment === "All" ? topic : previewSegment, issueDate);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -453,7 +599,7 @@ export default function Newsletter() {
   };
 
   return (
-    <div style={{ background: B.white, padding: "24px 28px", minHeight: "100%" }}>
+    <div style={{ background: B.white, padding: isMobile ? "16px" : "24px 28px", minHeight: "100%" }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
@@ -516,7 +662,7 @@ export default function Newsletter() {
       </div>
 
       {/* Main layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, alignItems: "start" }}>
         {/* Left: Article selector */}
         <div style={{
           border: `1px solid ${B.gray200}`,
@@ -582,6 +728,40 @@ export default function Newsletter() {
 
         {/* Right: Newsletter preview */}
         <div>
+          {/* Preview As selector */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 10,
+            flexWrap: "wrap",
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: B.gray500, flexShrink: 0 }}>
+              Preview as:
+            </span>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {["All", ...INDUSTRY_TAGS].map(seg => {
+                const active = previewSegment === seg;
+                const c = seg !== "All" ? INDUSTRY_COLORS[seg] : null;
+                return (
+                  <button
+                    key={seg}
+                    onClick={() => setPreviewSegment(seg)}
+                    style={{
+                      fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
+                      cursor: "pointer", transition: "all 0.15s",
+                      border: `1.5px solid ${active ? (c ? c.color : B.purple) : B.gray200}`,
+                      background: active ? (c ? c.bg : B.purplePale) : B.white,
+                      color: active ? (c ? c.color : B.purple) : B.gray500,
+                    }}
+                  >
+                    {seg === "All" ? "All Topics" : seg}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div style={{
             display: "flex",
             justifyContent: "space-between",
@@ -590,19 +770,20 @@ export default function Newsletter() {
           }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: B.gray700 }}>
               Newsletter Preview
+              {previewSegment !== "All" && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: INDUSTRY_COLORS[previewSegment]?.color, marginLeft: 6 }}>
+                  — {previewSegment} Edition
+                </span>
+              )}
             </span>
             <button
               onClick={handleCopy}
-              disabled={selectedArticles.length === 0}
+              disabled={previewArticles.length === 0}
               style={{
-                fontSize: 11,
-                fontWeight: 700,
-                padding: "7px 16px",
-                borderRadius: 4,
-                border: "none",
-                background: selectedArticles.length === 0 ? B.gray200 : (copied ? B.green : B.purple),
-                color: selectedArticles.length === 0 ? B.gray400 : B.white,
-                cursor: selectedArticles.length === 0 ? "not-allowed" : "pointer",
+                fontSize: 11, fontWeight: 700, padding: "7px 16px", borderRadius: 4, border: "none",
+                background: previewArticles.length === 0 ? B.gray200 : (copied ? B.green : B.purple),
+                color: previewArticles.length === 0 ? B.gray400 : B.white,
+                cursor: previewArticles.length === 0 ? "not-allowed" : "pointer",
                 transition: "background 0.2s",
               }}
             >
@@ -611,8 +792,8 @@ export default function Newsletter() {
           </div>
 
           <NewsletterPreview
-            articles={selectedArticles}
-            topic={topic}
+            articles={previewArticles}
+            topic={previewSegment === "All" ? topic : previewSegment}
             issueDate={issueDate}
           />
         </div>
@@ -705,85 +886,158 @@ export default function Newsletter() {
             style={{
               padding: "10px 20px",
               background: (nlLoading || nlStatus?.sending) ? B.gray200 : B.purple,
-              border: "none",
-              borderRadius: 2,
-              fontSize: 12,
-              fontWeight: 700,
+              border: "none", borderRadius: 2, fontSize: 12, fontWeight: 700,
               color: (nlLoading || nlStatus?.sending) ? B.gray400 : B.white,
               cursor: (nlLoading || nlStatus?.sending) ? "not-allowed" : "pointer",
-              transition: "background 0.2s",
-              flexShrink: 0,
+              transition: "background 0.2s", flexShrink: 0,
             }}
           >
             {nlLoading || nlStatus?.sending ? "Sending..." : "Send Now"}
           </button>
 
-          {/* Add subscriber */}
-          <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 260 }}>
-            <input
-              type="email"
-              value={emailInput}
-              onChange={e => setEmailInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSubscribe()}
-              placeholder="Add recipient email..."
-              style={{
-                flex: 1,
-                padding: "8px 12px",
-                border: `1px solid ${B.gray200}`,
-                borderRadius: 2,
-                fontSize: 12,
-                color: B.gray900,
-                outline: "none",
-              }}
-            />
-            <button
-              onClick={handleSubscribe}
-              disabled={!emailInput.trim() || emailAction === "adding"}
-              style={{
-                padding: "8px 14px",
-                background: B.white,
-                border: `1px solid ${B.purple}`,
-                borderRadius: 2,
-                fontSize: 11,
-                fontWeight: 700,
-                color: B.purple,
-                cursor: "pointer",
-              }}
-            >
-              + Add
-            </button>
-          </div>
+          {/* Add subscriber — step 1: email input */}
+          {addStep === "email" && (
+            <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 260 }}>
+              <input
+                type="email"
+                value={emailInput}
+                onChange={e => setEmailInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleStartAdd()}
+                placeholder="Add recipient email..."
+                style={{
+                  flex: 1, padding: "8px 12px", border: `1px solid ${B.gray200}`,
+                  borderRadius: 2, fontSize: 12, color: B.gray900, outline: "none",
+                }}
+              />
+              <button
+                onClick={handleStartAdd}
+                disabled={!emailInput.trim()}
+                style={{
+                  padding: "8px 14px", background: B.white, border: `1px solid ${B.purple}`,
+                  borderRadius: 2, fontSize: 11, fontWeight: 700, color: B.purple, cursor: "pointer",
+                }}
+              >
+                + Add
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Recipient list */}
-        {nlStatus?.recipients && nlStatus.recipients.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: B.gray400, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8 }}>
-              Subscribers ({nlStatus.recipients.length})
+        {/* Add subscriber — step 2: industry selection */}
+        {addStep === "industries" && (
+          <div style={{
+            marginTop: 14, padding: "16px 18px",
+            background: B.purplePale, border: `1px solid ${B.purpleMid}`,
+            borderRadius: 6,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: B.gray900, marginBottom: 4 }}>
+              Select industries for <span style={{ color: B.purple }}>{emailInput}</span>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {nlStatus.recipients.map(r => (
-                <div key={r} style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "4px 10px",
-                  background: B.purplePale,
-                  border: `1px solid ${B.purpleMid}`,
-                  borderRadius: 20,
-                  fontSize: 11,
-                  color: B.purpleDeep,
-                }}>
-                  {r}
-                  <button
-                    onClick={() => handleUnsubscribe(r)}
-                    style={{
-                      background: "none", border: "none", cursor: "pointer",
-                      color: B.gray400, fontSize: 12, lineHeight: 1, padding: 0,
-                      fontWeight: 700,
-                    }}
-                    title="Remove"
-                  >
-                    ×
-                  </button>
+            <div style={{ fontSize: 11, color: B.gray500, marginBottom: 12 }}>
+              Pick topics this subscriber should receive — or leave as "All Topics".
+            </div>
+            <IndustryChips selected={pendingIndustries} onChange={setPendingIndustries} />
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button
+                onClick={handleConfirmAdd}
+                disabled={emailAction === "adding"}
+                style={{
+                  padding: "8px 18px", background: B.purple, border: "none",
+                  borderRadius: 4, fontSize: 12, fontWeight: 700, color: B.white, cursor: "pointer",
+                }}
+              >
+                {emailAction === "adding" ? "Adding..." : "Confirm"}
+              </button>
+              <button
+                onClick={handleCancelAdd}
+                style={{
+                  padding: "8px 14px", background: B.white, border: `1px solid ${B.gray200}`,
+                  borderRadius: 4, fontSize: 12, fontWeight: 600, color: B.gray600, cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Subscriber list */}
+        {subscribers.length > 0 && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: B.gray400, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10 }}>
+              Subscribers ({subscribers.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {subscribers.map(sub => (
+                <div key={sub.email}>
+                  {/* Normal row */}
+                  {editingEmail !== sub.email ? (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+                      padding: "10px 14px",
+                      background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 6,
+                    }}>
+                      <span style={{ fontSize: 12, color: B.gray700, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {sub.email}
+                      </span>
+                      {/* Industry badges */}
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", flexShrink: 0 }}>
+                        {sub.industries.length === 0 ? (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: B.purplePale, color: B.purple, border: `1px solid ${B.purpleMid}` }}>
+                            All Topics
+                          </span>
+                        ) : sub.industries.map(tag => {
+                          const c = INDUSTRY_COLORS[tag];
+                          return (
+                            <span key={tag} style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: c.bg, color: c.color, border: `1px solid ${c.color}33` }}>
+                              {tag}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {/* Edit button */}
+                      <button
+                        title="Edit industries"
+                        onClick={() => { setEditingEmail(sub.email); setEditIndustries(sub.industries); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: B.gray400, padding: "2px 4px", fontSize: 13, lineHeight: 1, flexShrink: 0 }}
+                      >
+                        ✎
+                      </button>
+                      {/* Remove button */}
+                      <button
+                        onClick={() => handleUnsubscribe(sub.email)}
+                        title="Remove"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: B.gray400, fontSize: 14, fontWeight: 700, lineHeight: 1, padding: "2px 4px", flexShrink: 0 }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : (
+                    /* Inline edit row */
+                    <div style={{
+                      padding: "12px 14px",
+                      background: B.purplePale, border: `1px solid ${B.purpleMid}`, borderRadius: 6,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: B.gray900, marginBottom: 8 }}>
+                        {sub.email}
+                      </div>
+                      <IndustryChips selected={editIndustries} onChange={setEditIndustries} />
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        <button
+                          onClick={() => handleSaveEdit(sub.email)}
+                          style={{ padding: "6px 14px", background: B.purple, border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, color: B.white, cursor: "pointer" }}
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingEmail(null)}
+                          style={{ padding: "6px 12px", background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 4, fontSize: 11, fontWeight: 600, color: B.gray600, cursor: "pointer" }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

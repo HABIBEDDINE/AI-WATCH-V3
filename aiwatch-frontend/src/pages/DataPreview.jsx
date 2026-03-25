@@ -176,13 +176,13 @@ function DataTable({ articles, loading, error, searchQuery, setSearchQuery }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 700, background: B.purplePale, color: B.purple, padding: "4px 10px", borderRadius: 2 }}>
             {articles.length} Articles
           </span>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <input
             type="text"
             placeholder="Search..."
@@ -193,7 +193,7 @@ function DataTable({ articles, loading, error, searchQuery, setSearchQuery }) {
               border: `1px solid ${B.gray100}`,
               borderRadius: 4,
               fontSize: 11,
-              width: 200,
+              width: "min(200px, 100%)",
             }}
           />
           <button
@@ -234,10 +234,11 @@ function DataTable({ articles, loading, error, searchQuery, setSearchQuery }) {
         background: B.white,
         border: `1px solid ${B.gray100}`,
         borderRadius: 4,
-        overflow: "hidden",
+        overflow: "auto",
         boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+        WebkitOverflowScrolling: "touch",
       }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+        <table style={{ width: "100%", minWidth: 600, borderCollapse: "collapse", fontSize: 11 }}>
           <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray100}` }}>
             <tr>
               <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>#</th>
@@ -370,6 +371,12 @@ function KpiCard({ label, value, sub }) {
 
 function Charts({ articles }) {
   const [selectedTopic, setSelectedTopic] = useState("All");
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   if (articles.length === 0) {
     return (
@@ -452,7 +459,7 @@ function Charts({ articles }) {
       </div>
 
       {/* ── KPI ROW ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
         <KpiCard label="Articles"       value={filtered.length}  sub={selectedTopic === "All" ? "all topics" : selectedTopic} />
         <KpiCard label="Strong Signals" value={`${strongPct}%`}  sub={`${strong} strong · ${weak} weak`} />
         <KpiCard label="Avg Relevance"  value={avgRel}           sub="score out of 10" />
@@ -460,7 +467,7 @@ function Charts({ articles }) {
       </div>
 
       {/* ── ROW 1: Signal + Relevance ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
 
         <ChartPanel title="Signal Distribution" subtitle={`Strong vs Weak · ${filtered.length} articles${selectedTopic !== "All" ? ` · ${selectedTopic}` : ""}`}>
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
@@ -553,6 +560,12 @@ function FundingAndActors() {
   const [fundingData, setFundingData] = useState(MOCK_FUNDING);
   const [actorsData, setActorsData] = useState(MOCK_ACTORS);
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -597,15 +610,15 @@ function FundingAndActors() {
   }, []);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
       {/* Funding Rounds */}
       <div>
         <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: B.gray900 }}>💰 Funding Rounds</h3>
         <p style={{ fontSize: 10, color: B.gray500, marginBottom: 12 }}>
           AI/Tech funding announcements mentioned in news articles {loading && "(Updating...)"}
         </p>
-        <div style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+        <div style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <table style={{ width: "100%", minWidth: 380, borderCollapse: "collapse", fontSize: 11 }}>
             <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray200}` }}>
               <tr>
                 <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Company</th>
@@ -641,8 +654,8 @@ function FundingAndActors() {
         <p style={{ fontSize: 10, color: B.gray500, marginBottom: 12 }}>
           Publications publishing your topics (based on loaded articles) {loading && "(Updating...)"}
         </p>
-        <div style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+        <div style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <table style={{ width: "100%", minWidth: 320, borderCollapse: "collapse", fontSize: 11 }}>
             <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray200}` }}>
               <tr>
                 <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700 }}>Name</th>
@@ -679,6 +692,12 @@ export default function DataPreview() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   const fetchArticles = useCallback(async (search) => {
     setLoading(true);
@@ -706,21 +725,22 @@ export default function DataPreview() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: B.gray50, padding: "24px" }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: B.gray900, marginBottom: 8 }}>Data Preview</h1>
+    <div style={{ minHeight: "100vh", background: B.gray50, padding: isMobile ? "16px" : "24px" }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: B.gray900, marginBottom: 4 }}>Data Preview</h1>
         <p style={{ fontSize: 12, color: B.gray500 }}>Explore articles, funding, and key actors</p>
       </div>
 
       {/* Tab Navigation */}
       <div style={{
         display: "flex",
-        gap: 2,
+        gap: 0,
         background: B.white,
         border: `1px solid ${B.gray200}`,
         borderRadius: 2,
-        marginBottom: 24,
-        overflow: "hidden",
+        marginBottom: 20,
+        overflow: "auto",
+        WebkitOverflowScrolling: "touch",
       }}>
         {tabs.map(tab => (
           <button

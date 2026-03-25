@@ -329,6 +329,14 @@ export default function AIWatchDXC() {
   const [toasts, setToasts] = useState([]);
   const [health, setHealth] = useState({ status: "checking" });
   const [loadError, setLoadError] = useState("");
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const activeIndustry = INDUSTRY_FILTERS.find(x => x.id === industryFilter) || INDUSTRY_FILTERS[0];
   const primaryPersona = activeIndustry.personas[0];
@@ -506,12 +514,23 @@ export default function AIWatchDXC() {
 
       {/* ── TOPBAR ── */}
       <div style={{
-        background:B.white, height:68,
-        display:"flex", alignItems:"center", padding:"0 28px", justifyContent:"space-between",
-        position:"sticky", top:0, zIndex:100, borderBottom:`1px solid ${B.gray100}`,
+        background:B.white, height:56,
+        display:"flex", alignItems:"center", padding:`0 ${isMobile ? 16 : 28}px`, justifyContent:"space-between",
+        position:"sticky", top:0, zIndex:200, borderBottom:`1px solid ${B.gray100}`,
       }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <span style={{ fontSize:24, fontWeight:800, color:B.gray900, letterSpacing:-0.6, fontFamily:"'Open Sans',sans-serif", lineHeight:1 }}>AI Watch</span>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {isMobile && (
+            <button
+              onClick={() => setSidebarOpen(o => !o)}
+              style={{ background:"none", border:"none", cursor:"pointer", padding:"4px 6px", display:"flex", flexDirection:"column", gap:4 }}
+              aria-label="Menu"
+            >
+              <span style={{ display:"block", width:20, height:2, background:B.gray700, borderRadius:2 }} />
+              <span style={{ display:"block", width:20, height:2, background:B.gray700, borderRadius:2 }} />
+              <span style={{ display:"block", width:20, height:2, background:B.gray700, borderRadius:2 }} />
+            </button>
+          )}
+          <span style={{ fontSize:isMobile ? 20 : 24, fontWeight:800, color:B.gray900, letterSpacing:-0.6, fontFamily:"'Open Sans',sans-serif", lineHeight:1 }}>AI Watch</span>
           <div style={{ display:"flex", alignItems:"center", gap:5, border:`1px solid ${liveColor}40`, borderRadius:2, padding:"3px 9px" }}>
             <div style={{ width:6, height:6, borderRadius:"50%", background:liveColor, animation:"pulse 2s infinite" }} />
             <span style={{ fontSize:10, fontWeight:700, color:liveColor, letterSpacing:1 }}>{liveStatus}</span>
@@ -519,14 +538,28 @@ export default function AIWatchDXC() {
         </div>
       </div>
 
+      {/* ── MOBILE SIDEBAR BACKDROP ── */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:299 }}
+        />
+      )}
+
       {/* ── LAYOUT ── */}
-      <div style={{ display:"flex", height:"calc(100vh - 68px)" }}>
+      <div style={{ display:"flex", height:"calc(100vh - 56px)" }}>
 
         {/* ── LEFT SIDEBAR ── */}
         <div style={{
           width:210, background:B.white, borderRight:`1px solid ${B.gray100}`,
           padding:"24px 0", display:"flex", flexDirection:"column",
           overflowY:"auto", flexShrink:0,
+          ...(isMobile ? {
+            position:"fixed", top:56, left:0, height:"calc(100vh - 56px)",
+            zIndex:300, boxShadow:"4px 0 24px rgba(0,0,0,0.12)",
+            transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+            transition:"transform 0.25s ease",
+          } : {}),
         }}>
           {navTabs.map(t2 => {
             const isActive = location.pathname === t2.path;
@@ -534,11 +567,12 @@ export default function AIWatchDXC() {
               <Link
                 key={t2.id}
                 to={t2.path}
+                onClick={() => isMobile && setSidebarOpen(false)}
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = B.gray50; }}
                 onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                 style={{
                   display:"flex", alignItems:"flex-start", gap:10,
-                  padding:"10px 16px", border:"none",
+                  padding:"12px 16px", border:"none",
                   borderLeft:`3px solid ${isActive ? B.purple : "transparent"}`,
                   background: isActive ? B.purplePale : "transparent",
                   color: isActive ? B.purple : B.gray500,
@@ -564,7 +598,7 @@ export default function AIWatchDXC() {
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <div style={{ flex:1, overflowY:"auto", background:B.white }}>
+        <div style={{ flex:1, overflowY:"auto", background:B.white, minWidth:0 }}>
 
           <Routes>
             <Route path="/" element={<Explore />} />

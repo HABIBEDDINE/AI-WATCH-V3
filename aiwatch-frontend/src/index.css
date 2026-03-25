@@ -5,9 +5,52 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent horizontal overflow on mobile */
+  overflow-x: hidden;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* Mobile: prevent content wider than screen */
+* { box-sizing: border-box; }
+
+/* Smooth momentum scroll on iOS */
+.scroll-touch { -webkit-overflow-scrolling: touch; }
+
+/* Chip/filter rows: always scroll horizontally without showing scrollbar */
+.chips-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.chips-row::-webkit-scrollbar { display: none; }
+
+/* Tables always scroll horizontally on mobile */
+@media (max-width: 768px) {
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* No element should exceed viewport width */
+  img, video, iframe, embed, object { max-width: 100%; }
+}
+
+/* Pagination bar stacks on small phones */
+@media (max-width: 480px) {
+  .pagination-bar {
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+  }
+  .pagination-nav {
+    display: flex !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+  .pagination-page-info {
+    text-align: center !important;
+  }
 }

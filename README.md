@@ -1,252 +1,236 @@
-# 🔍 AI Watch – V2
+# AI Watch – V3
 
-> Automated tech news analysis with AI-powered strategic intelligence
+> Strategic technology intelligence platform powered by multi-source news aggregation and AI analysis
 
-**AI Watch** is a strategic intelligence platform that continuously monitors technology trends, startups, breakthroughs, and sectoral innovations. It automatically fetches news, analyzes articles with AI, and generates actionable reports for technology leaders.
+**AI Watch** continuously monitors technology trends, startup activity, funding rounds, and market signals. It fetches real news from four live APIs, analyzes each article with LLM-powered summarization, and surfaces actionable intelligence for technology leaders through an interactive React dashboard.
 
-**Perfect for**: CTOs, Innovation Managers, Strategy Directors
+**Built for**: CTOs, Innovation Managers, Strategy Directors
 
----
-
-## 💡 Project Overview
-
-The platform combines **news aggregation**, **AI analysis**, and **interactive dashboards** to transform raw tech data into strategic intelligence. Get real-time market signals, funding trends, and competitive insights automatically.
-
-### Key Capabilities
-- 📰 **Automated News Collection** - NEWS_API + NewsData + Google News RSS + Perplexity real-time search
-- 🧠 **AI-Powered Analysis** - OpenAI GPT-4o-mini summarization
-- 📊 **Signal Detection** - Identify weak/strong market signals
-- 📈 **Interactive Dashboard** - 7-page React frontend with charts
-- 📄 **Report Generation** - PDF exports for stakeholders
-- 📧 **Weekly Newsletter** - Auto-generated email digests
+**Branch**: ABDO
 
 ---
 
-## 📊 Tech Stack
+## What's New in V3
 
-**Backend**: FastAPI (Python 3.8+), NewsAPI, NewsData API, Google News RSS, Perplexity API, OpenAI GPT-4o-mini, APScheduler
+### Backend
+- **Multi-LLM fallback chain** — OpenAI GPT-4o-mini → Anthropic Claude Haiku. If OpenAI fails or is not configured, Anthropic is used automatically. Both work through corporate SSL proxies (`httpx verify=False`)
+- **Strategic AI prompts** — Summaries now follow a structured 4-point format: WHAT happened, WHY it matters strategically, WHO is affected, WHAT to watch next
+- **Stateless `/api/summarize` endpoint** — Frontend sends article data directly; no cache lookup required
+- **Auto-startup ingestion** — Server pre-populates article cache on startup via background thread
+- **Hot reload** — `uvicorn` runs with `reload=True`; code changes are picked up without manual restart
+- **Keyword extraction** — Every ingested article gets up to 6 SEO-style keywords extracted from title + description
+- **Source API tracking** — Each article records which data source it came from (Perplexity, NewsAPI, NewsData, Google News)
+- **Mock data removed** — All hardcoded fake articles, fallback feeds, and placeholder products deleted
+- **`/api/test-llm` endpoint** — Diagnoses both OpenAI and Anthropic connectivity and key presence
+- **`/api/debug/sources` endpoint** — Returns article counts broken down by source API
 
-**Frontend**: React 19.2.4, Recharts, Axios, React Router v6
+### Frontend — Explore Page
+- **Article Detail page** (`/article/:id`) — Full detail view with signal badge, industry tag, source badge, Summary section, Key Info table, Key Actors, Funding, and Read Full Article button
+- **Summary auto-generation** — ArticleDetail auto-calls `/api/summarize` on load when no summary exists
+- **Keywords row** — Key Info table shows extracted keyword pills in purple
+- **Refresh Intelligence** — Appends the next page of articles to the existing list (sorted newest-first)
+- **Category combobox** — Industry filter is now a dropdown combobox replacing the overflow chip buttons
+- **Grid / List toggle** — Switch between single-column list and two-column grid layouts
+- **Empty state auto-ingest** — If the cache is empty on load, ingestion triggers automatically (once per session)
+
+### Frontend — Reports Page
+- **Professional PDF design** — Purple header banner, meta grid, executive summary, key findings pills, table of contents, per-article category colour bar, keywords pills, clickable "Read Full Article" links, purple page-number footers
+- **Shared PDF utility** — `src/utils/generatePDF.js` — single source of truth used by both the Reports page and the Explore page download button
+- **Daily Brief modal** — Clean white minimal design with stats cards, topic pills, article list with left-border signal indicator, and footer action buttons
+- **STRONG/WEAK signal** appended inline on the article meta line (source | date | Relevance | STRONG)
+- **Title overflow fix** — Font set to 10.5pt before `splitTextToSize` so wrapping is calculated at the correct character width (154mm max)
+
+### Frontend — Data Preview Page
+- **Real funding data** — Funding Rounds table fetches from `/api/funding`
+- **Real actors data** — News Sources table fetches from `/api/actors`
+- **Empty states** — Both tables show a descriptive message when no data is available yet
+
+### Mobile / Responsive
+- Sidebar collapses to a drawer on mobile (≤768px) with hamburger toggle and backdrop overlay
+- Sidebar padding set to `0` so nav items start flush at the top
+- CSS utility classes: `grid-2col`, `grid-4col`, `stack-mobile`, `hide-mobile`, `full-mobile`, `pad-mobile`, `filter-chips`, `pagination-bar`
 
 ---
 
-## 🎯 Strategic Value
+## Tech Stack
 
-| Feature | Business Impact |
-|---------|-----------------|
-| **Real-time Monitoring** | 24/7 market trend tracking |
-| **AI Summarization** | Convert information volume to insights |
-| **Signal Detection** | Identify emerging opportunities early |
-| **Relevance Scoring** | Prioritize intelligence for leadership |
-| **Executive Reports** | Professional PDF exports for sharing |
-| **Power BI Integration** | CSV/JSON data for analytics |
+**Backend**: FastAPI · Python 3.10+ · APScheduler · httpx · OpenAI SDK · Anthropic SDK
+
+**Data Sources**: NewsAPI · NewsData · Google News RSS · Perplexity API
+
+**Frontend**: React 19 · React Router v6 · Recharts · jsPDF · Lucide React
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
-ai-watch-V2/
-├── Backend
-│   ├── api.py                  # FastAPI main application
-│   ├── ingestion.py            # News fetching (NewsAPI + Perplexity)
-│   ├── summarizer.py           # AI analysis with GPT-4o-mini
-│   ├── report_generator.py     # Markdown + PDF reports
-│   ├── newsletter.py           # HTML email generation
-│   ├── powerbi_export.py       # CSV/JSON exports
-│   ├── scheduler.py            # APScheduler configuration
-│   └── main.py                 # CLI entry point
+ai-watch-V3/
+├── api.py                    # FastAPI app — all REST endpoints
+├── ingestion.py              # Multi-source news fetching + keyword extraction
+├── summarizer.py             # LLM summarization (OpenAI → Anthropic fallback)
+├── report_generator.py       # Markdown + PDF report generation
+├── newsletter.py             # HTML email digest generation
+├── powerbi_export.py         # CSV/JSON exports for Power BI
+├── scheduler.py              # APScheduler daily ingestion job
+├── .env                      # API keys (DO NOT COMMIT)
+├── .env.example              # Key template
+├── requirements.txt
 │
-├── Frontend (React)
-│   └── aiwatch-frontend/
-│       ├── src/pages/          # 7 dashboard pages (Explore, Reports, Trends, etc.)
-│       ├── src/components/     # Reusable UI components
-│       └── src/services/       # API client
-│
-├── reports/                    # Generated markdown reports
-├── .env                        # API keys (DO NOT COMMIT)
-├── .env.example                # Template for configuration
-└── requirements.txt            # Python dependencies
+└── aiwatch-frontend/
+    └── src/
+        ├── pages/
+        │   ├── Explore.jsx         # News feed — filter, search, paginate, navigate
+        │   ├── ArticleDetail.jsx   # Full article view with AI summary
+        │   ├── DataPreview.jsx     # Charts, data table, funding & actors
+        │   ├── Reports.jsx         # Saved reports with PDF export
+        │   ├── Solutions.jsx       # DXC solution catalog
+        │   ├── Matching.jsx        # AI readiness quiz + solution matching
+        │   ├── Newsletter.jsx      # Weekly digest viewer
+        │   └── Trends.jsx          # Market trend charts
+        ├── components/
+        │   └── CategoryCombobox.jsx  # Reusable industry filter dropdown
+        ├── utils/
+        │   └── generatePDF.js      # Shared professional PDF builder (jsPDF)
+        └── services/
+            └── api.js              # All API calls with retry + timeout
 ```
 
 ---
 
-## 🚀 Get Started
+## API Keys
 
-### Prerequisites
-- Python 3.8+
-- Node.js 16+
-- npm 8+
-- API Keys: [NEWS_API](https://newsapi.org), [OpenAI](https://openai.com/api), (optional) [Perplexity](https://www.perplexity.ai)
+Copy `.env.example` to `.env` and fill in your keys:
 
-### Installation (5 minutes)
+```env
+# Required (at least one LLM key)
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
 
-**1. Clone the repository**
-```bash
-git clone https://github.com/abde0112/ai-watch-V2.git
-cd ai-watch-V2
+# News sources (at least one recommended)
+NEWS_API_KEY=...
+NEWSDATA_API_KEY=...
+
+# Optional
+PERPLEXITY_API_KEY=...
 ```
 
-**2. Setup Backend**
+The system works with any combination — if OpenAI is missing, Anthropic handles all summarization. If a news API key is missing, the other sources fill in.
+
+---
+
+## Get Started
+
+### 1. Backend
+
 ```bash
-# Create virtual environment
 python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # macOS/Linux
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate     # macOS/Linux
 
-# Install dependencies
 pip install -r requirements.txt
+cp .env.example .env          # add your API keys
+
+python api.py
+# → http://localhost:8000
+# → auto-reloads on code changes
 ```
 
-**3. Setup Frontend**
+### 2. Frontend
+
 ```bash
 cd aiwatch-frontend
 npm install
-```
-
-**4. Configure API Keys**
-```bash
-# Copy template to .env
-copy .env.example .env
-
-# Edit .env with your API keys
-NEWS_API_KEY=your_key_here
-OPENAI_API_KEY=your_key_here
-```
-
-### Running the Project
-
-**Terminal 1 - Start Backend:**
-```bash
-python api.py
-# Backend runs on http://localhost:8000
-```
-
-**Terminal 2 - Start Frontend:**
-```bash
-cd aiwatch-frontend
 npm start
-# Frontend opens at http://localhost:3000
-```
-
-✅ **Done!** Open http://localhost:3000 in your browser.
-
----
-
-## 📡 DATA SOURCES
-
-AI Watch aggregates news from **multiple sources** for comprehensive coverage:
-
-### 1. **NewsAPI** 🟦
-- **URL**: https://newsapi.org
-- **Type**: REST API
-- **Coverage**: 50,000+ sources worldwide
-- **Speed**: Real-time
-- **Tier**: Free (unlimited requests)
-- **Env Var**: `NEWS_API_KEY`
-
-### 2. **NewsData API** 🟨  
-- **URL**: https://newsdata.io
-- **Type**: REST API  
-- **Coverage**: Global news sources, 120+ countries
-- **Speed**: Real-time
-- **Tier**: Free with daily limits
-- **Env Var**: `NEWSDATA_API_KEY`
-- **Your Key**: `pub_c85406a5bbd348e6b61e16b273e29b8b`
-
-### 3. **Google News RSS** 🟩
-- **URL**: https://news.google.com/rss
-- **Type**: RSS Feed
-- **Coverage**: Aggregated from Google News
-- **Speed**: Near real-time
-- **Cost**: **Completely FREE** ✅
-- **Env Var**: **None required**
-- **Example**: `https://news.google.com/rss/search?q=artificial+intelligence&hl=en-US&gl=US&ceid=US:en`
-
-### 4. **Perplexity API** (Optional) 🟪
-- **URL**: https://www.perplexity.ai
-- **Type**: Real-time web search AI
-- **Coverage**: Live internet search
-- **Speed**: 30+ seconds per query
-- **Tier**: Paid (enterprise)
-- **Env Var**: `PERPLEXITY_API_KEY`
-
----
-
-## 🔄 How Data Flows
-
-```
-NewsAPI + NewsData + Google News RSS + Perplexity
-        ↓
-  Fetch Articles (Fast)
-        ↓
- Deduplicate by Title
-        ↓
-  Format Metadata
-        ↓
-  [Optional: OpenAI Analysis]
-        ↓
- Store in APIs Cache
-        ↓
-Dashboard + Reports
+# → http://localhost:3000
 ```
 
 ---
 
-## 📖 Product Roadmap
+## API Endpoints
 
-### V1 - POC ✅ Complete
-- Automatic news collection from NewsAPI
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Server health + cache stats |
+| GET | `/api/articles` | Paginated article list with filters |
+| GET | `/api/articles/{id}` | Single article by ID |
+| POST | `/api/summarize` | Generate AI summary for any article (stateless) |
+| POST | `/api/ingest` | Trigger fresh news ingestion |
+| GET | `/api/funding` | Extracted funding rounds |
+| GET | `/api/actors` | Key actors mentioned in articles |
+| GET | `/api/reports` | Saved reports |
+| POST | `/api/reports` | Save a new report |
+| GET | `/api/export/csv` | Download articles as CSV |
+| GET | `/api/signals/live` | Live signal breakdown |
+| GET | `/api/debug/sources` | Articles count per source API |
+| GET | `/api/test-llm` | Test OpenAI + Anthropic connectivity |
+
+---
+
+## Data Sources
+
+| Source | Type | Cost | Key Required |
+|--------|------|------|-------------|
+| **Google News RSS** | RSS Feed | Free | No |
+| **NewsAPI** | REST API | Free tier | `NEWS_API_KEY` |
+| **NewsData** | REST API | Free tier | `NEWSDATA_API_KEY` |
+| **Perplexity** | AI Search | Paid | `PERPLEXITY_API_KEY` |
+
+---
+
+## Dashboard Pages
+
+| Page | Route | Description |
+|------|-------|-------------|
+| **Explore** | `/explore` | Browse articles, filter by industry, search, grid/list view |
+| **Article Detail** | `/article/:id` | Full article with AI summary, keywords, key actors, funding |
+| **Data Preview** | `/data` | Charts, stats, data table, funding rounds, news sources |
+| **Reports** | `/reports` | Saved intelligence reports with PDF download |
+| **Solutions** | `/solutions` | DXC solution catalog with fit scoring |
+| **Matching** | `/matching` | AI readiness quiz → recommended solutions |
+| **Newsletter** | `/newsletter` | Weekly digest with subscription management |
+
+---
+
+## Roadmap
+
+### V1 — POC (done)
+- News collection from NewsAPI
 - AI article summarization
-- Industry categorization
-- Weak signal detection
-- Emerging startup extraction
-- Newsletter summarization
+- Industry categorization + weak signal detection
+- Startup extraction + newsletter digest
 
-### V2 - MVP 🔄 Current
-- Industry & market classification
+### V2 — MVP (done)
+- Industry & market classification taxonomy
+- Key actors and funding round extraction
 - Auto-generated weekly newsletter
-- Real-time BI dashboard
-- Key actors mapping
-- Funding rounds analysis
-- Brief & publication tracking
+- Real-time BI dashboard with charts
+- PDF report export
 
-### V3 - MVP+ 📋 Planned
-- Competitive radar (interactive)
-- Technology maturity scoring
-- Sector-specific strategic analysis
-- 6-12 month trend predictions
-- Investment opportunities recommendations
-- Full executive readiness
+### V3 — MVP+ (current — branch: ABDO)
+- Multi-source ingestion (4 APIs in parallel)
+- OpenAI → Anthropic fallback chain
+- Strategic AI prompts (WHAT / WHY / WHO / WHAT NEXT)
+- Article Detail page with full context
+- Keyword extraction per article
+- Category combobox filter
+- Append-on-refresh (load more without losing current articles)
+- Mock data fully removed — 100% real API data
+- Hot reload server
+- Shared PDF utility (`generatePDF.js`) — one design, used everywhere
+- Professional PDF: purple header, meta grid, TOC, category colour bars, keyword pills, clickable links
+- Mobile-responsive sidebar drawer with hamburger toggle
+- Daily Brief modal redesigned (white minimal, stats cards, signal left-border)
 
----
-
-## 💻 Dashboard Pages
-
-| Page | Purpose |
-|------|---------|
-| **🔝 Explore** | Browse & filter articles by topic and signal strength |
-| **📈 Data Preview** | View charts, tables, and statistics |
-| **📋 Reports** | Generated reports with PDF export |
-| **🎯 Solutions** | DXC recommendations |
-| **📈 Trends** | Market trend analysis |
-| **🗺️ Journey** | Strategic roadmap & milestones |
-| **📧 Newsletter** | Weekly digest viewer |
-
----
-
-## 🎓 For Different Roles
-
-- **👤 CTO**: Focus on AI/ML trends, infrastructure, new technology capabilities
-- **👤 Innovation Manager**: Track fintech/HealthTech startups, funding rounds
-- **👤 Strategy Director**: Monitor cybersecurity threats, regulations, market signals
+### V4 — Planned
+- Competitive radar (interactive map of market players)
+- Technology maturity scoring per sector
+- Trend prediction (6–12 month horizon)
+- Investment opportunity scoring
+- Saved filters and personalized watchlists
+- Email alerts for high-relevance articles
+- Multi-language support
 
 ---
 
-## 📄 License
-
-MIT License - Proprietary use for DXC Technology
-
----
-
-**Version**: 2.0.0 | **Status**: ✅ Production Ready | **Last Updated**: March 17, 2026
+**Version**: 3.0.0 | **Branch**: ABDO | **Status**: Active Development | **Last Updated**: March 2026

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getArticles, triggerIngest, saveReport } from "../services/api";
-import { jsPDF } from "jspdf";
+import { generatePDF } from "../utils/generatePDF";
 import { Search } from "lucide-react";
 import { cleanText } from "../utils/cleanText";
 
@@ -273,43 +273,30 @@ export default function Explore() {
     });
     try {
       if (reportFormat === "pdf") {
-        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-        const pageWidth  = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const margin = 15;
-        const maxWidth = pageWidth - margin * 2;
-        let y = margin;
-        pdf.setFontSize(18); pdf.setTextColor(108, 71, 255);
-        pdf.text("AI WATCH REPORT", margin, y); y += 10;
-        pdf.setFontSize(10); pdf.setTextColor(102, 102, 102);
-        pdf.text(`Generated: ${new Date().toLocaleString()}`, margin, y); y += 8;
-        pdf.setDrawColor(108, 71, 255);
-        pdf.line(margin, y, pageWidth - margin, y); y += 8;
-        selected.forEach((article, idx) => {
-          if (y > pageHeight - margin - 40) { pdf.addPage(); y = margin; }
-          pdf.setFontSize(12); pdf.setTextColor(17, 17, 17); pdf.setFont(undefined, "bold");
-          const titleLines = pdf.splitTextToSize(`${idx + 1}. ${article.title}`, maxWidth);
-          pdf.text(titleLines, margin, y); y += titleLines.length * 6 + 2;
-          pdf.setFontSize(9); pdf.setTextColor(102, 102, 102); pdf.setFont(undefined, "normal");
-          pdf.text(`Source: ${article.source} | Signal: ${article.signal_strength} | Relevance: ${article.relevance}/10`, margin, y); y += 6;
-          pdf.text(`Published: ${new Date(article.published_at).toLocaleDateString()}`, margin, y); y += 6;
-          if (article.url) {
-            pdf.setTextColor(108, 71, 255); pdf.setFont(undefined, "bold");
-            const urlLines = pdf.splitTextToSize(`URL: ${article.url}`, maxWidth);
-            pdf.text(urlLines, margin, y); y += urlLines.length * 5 + 2;
-          }
-          y += 2;
-          pdf.setFontSize(10); pdf.setTextColor(68, 68, 68);
-          const sumLines = pdf.splitTextToSize(article.summary || "Summary not available", maxWidth);
-          pdf.text(sumLines, margin, y); y += sumLines.length * 5 + 6;
-          pdf.setDrawColor(224, 224, 224);
-          pdf.line(margin, y, pageWidth - margin, y); y += 6;
-        });
-        if (y < pageHeight - 10) {
-          pdf.setFontSize(8); pdf.setTextColor(153, 153, 153);
-          pdf.text("AI Watch v2.0 | Strategic Intelligence Platform", margin, pageHeight - 10);
-        }
-        pdf.save(`ai-watch-report-${new Date().toISOString().split("T")[0]}.pdf`);
+        const avgRel = selected.length > 0
+          ? Math.round(selected.reduce((s, a) => s + (a.relevance || 0), 0) / selected.length * 10) / 10
+          : null;
+        const cats       = [...new Set(selected.map(a => a.industry || a.category).filter(Boolean))];
+        const strongArts = selected.filter(a => (a.signal_strength || "").toLowerCase() === "strong");
+        const autoSummary = `This intelligence report covers ${selected.length} article${selected.length !== 1 ? "s" : ""} across ${cats.length > 0 ? cats.slice(0, 4).join(", ") : "multiple sectors"}, with ${strongArts.length} strong signal${strongArts.length !== 1 ? "s" : ""} detected. The analysis highlights key market movements, emerging technologies, and strategic opportunities relevant to technology leadership.`;
+        const report = {
+          title:        `AI Watch Report - ${new Date().toLocaleDateString()}`,
+          topic:        selectedTopic || "All Industries",
+          summary:      autoSummary,
+          avgRelevance: avgRel,
+          articles:     selected.map(a => ({
+            title:    a.title,
+            source:   a.source || "Unknown",
+            date:     new Date(a.published_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+            signal:   a.signal_strength || "Moderate",
+            relevance: a.relevance,
+            url:      a.url,
+            summary:  a.summary,
+            keywords: a.keywords || [],
+            industry: a.industry || a.category || null,
+          })),
+        };
+        generatePDF(report);
       } else {
         const el = document.createElement("a");
         el.setAttribute("href", "data:text/markdown;charset=utf-8," + encodeURIComponent(markdownContent));

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getReports, getReport, deleteReport, getArticles, saveReport } from "../services/api";
-import { jsPDF } from "jspdf";
+import { generatePDF } from "../utils/generatePDF";
 
 const ACCENT    = "#6B2C94";
 const ACCENT_BG = "#f5eefb";
@@ -28,76 +28,6 @@ const B = {
 
 const formatDate = (d) =>
   new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-
-// ── Shared PDF builder ────────────────────────────────────────────────────
-function buildPDF(report) {
-  const pdf        = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageWidth  = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin     = 15;
-  const maxWidth   = pageWidth - margin * 2;
-  let y            = margin;
-
-  pdf.setFontSize(22); pdf.setTextColor(108, 71, 255); pdf.setFont(undefined, "bold");
-  pdf.text(report.title, margin, y); y += 10;
-
-  pdf.setFontSize(10); pdf.setTextColor(102, 102, 102); pdf.setFont(undefined, "normal");
-  pdf.text(formatDate(report.generated_date || new Date()), margin, y); y += 8;
-
-  pdf.setDrawColor(108, 71, 255); pdf.setLineWidth(0.5);
-  pdf.line(margin, y, pageWidth - margin, y); y += 10;
-
-  if (report.summary) {
-    pdf.setFontSize(10); pdf.setTextColor(17, 17, 17); pdf.setFont(undefined, "bold");
-    pdf.text("Summary", margin, y); y += 6;
-    pdf.setFont(undefined, "normal"); pdf.setTextColor(68, 68, 68);
-    const sl = pdf.splitTextToSize(report.summary, maxWidth);
-    pdf.text(sl, margin, y); y += sl.length * 4 + 8;
-  }
-
-  if (report.key_points?.length > 0) {
-    if (y > pageHeight - margin - 40) { pdf.addPage(); y = margin; }
-    pdf.setFontSize(10); pdf.setTextColor(17, 17, 17); pdf.setFont(undefined, "bold");
-    pdf.text("Key Findings", margin, y); y += 8;
-    pdf.setFont(undefined, "normal"); pdf.setFontSize(9); pdf.setTextColor(68, 68, 68);
-    report.key_points.forEach(pt => {
-      if (y > pageHeight - margin - 20) { pdf.addPage(); y = margin; }
-      const pl = pdf.splitTextToSize("- " + pt, maxWidth - 5);
-      pdf.text(pl, margin + 5, y); y += pl.length * 4 + 2;
-    });
-    y += 6;
-  }
-
-  if (report.articles?.length > 0) {
-    if (y > pageHeight - margin - 40) { pdf.addPage(); y = margin; }
-    pdf.setFontSize(10); pdf.setTextColor(17, 17, 17); pdf.setFont(undefined, "bold");
-    pdf.text("Articles & Sources", margin, y); y += 10;
-    report.articles.forEach((a, idx) => {
-      if (y > pageHeight - margin - 30) { pdf.addPage(); y = margin; }
-      pdf.setFontSize(9); pdf.setTextColor(17, 17, 17); pdf.setFont(undefined, "bold");
-      const tl = pdf.splitTextToSize(`${a.number || idx + 1}. ${a.title}`, maxWidth);
-      pdf.text(tl, margin, y); y += tl.length * 4 + 2;
-      pdf.setFontSize(8); pdf.setTextColor(102, 102, 102); pdf.setFont(undefined, "normal");
-      pdf.text(`${a.source} | ${a.date} | Signal: ${a.signal?.toUpperCase()} | Relevance: ${a.relevance}/10`, margin, y); y += 5;
-      if (a.summary) {
-        const asl = pdf.splitTextToSize(a.summary, maxWidth);
-        pdf.text(asl, margin, y); y += asl.length * 3.5 + 3;
-      }
-      if (a.url) {
-        pdf.setTextColor(108, 71, 255); pdf.setFont(undefined, "bold");
-        const ul = pdf.splitTextToSize(`URL: ${a.url}`, maxWidth);
-        pdf.text(ul, margin, y); y += ul.length * 3 + 6;
-      } else { y += 4; }
-    });
-  }
-
-  if (y < pageHeight - 10) {
-    pdf.setFontSize(8); pdf.setTextColor(153, 153, 153);
-    pdf.text("AI Watch | Strategic Intelligence Platform", margin, pageHeight - 10);
-  }
-
-  pdf.save(`${report.title.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split("T")[0]}.pdf`);
-}
 
 // ── Generate Report Modal ─────────────────────────────────────────────────
 function GenerateReportModal({ onClose, onSaved }) {
@@ -177,7 +107,7 @@ function GenerateReportModal({ onClose, onSaved }) {
 
   const handleDownloadPDF = () => {
     if (selected.size === 0) { setError("Select at least one article."); return; }
-    buildPDF({ ...buildReportData(), generated_date: new Date() });
+    generatePDF({ ...buildReportData(), generated_date: new Date() });
   };
 
   return (
@@ -423,79 +353,6 @@ function DailyReportModal({ onClose, onSaved }) {
     funding_count: 0,
   });
 
-  // Build a daily-specific PDF (newsletter-style layout)
-  const buildDailyPDF = () => {
-    const pdf        = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pageWidth  = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin     = 15;
-    const maxWidth   = pageWidth - margin * 2;
-    let y            = margin;
-
-    // ── Header band ──
-    pdf.setFillColor(108, 71, 255);
-    pdf.rect(0, 0, pageWidth, 38, "F");
-    pdf.setFontSize(20); pdf.setTextColor(255, 255, 255); pdf.setFont(undefined, "bold");
-    pdf.text("AI Watch Daily Brief", margin, 16);
-    pdf.setFontSize(10); pdf.setFont(undefined, "normal");
-    pdf.text(today, margin, 26);
-    pdf.setFontSize(9);
-    pdf.text(`${articles.length} articles  |  ${strongCount} strong signals  |  ${Object.keys(grouped).length} topics  |  Avg relevance ${avgRel}/10`, margin, 34);
-    y = 48;
-
-    // ── Topic sections ──
-    Object.entries(grouped).forEach(([topic, arts]) => {
-      if (y > pageHeight - margin - 30) { pdf.addPage(); y = margin; }
-
-      // Topic header
-      pdf.setFillColor(240, 237, 255);
-      pdf.rect(margin, y - 4, maxWidth, 12, "F");
-      pdf.setFontSize(10); pdf.setTextColor(108, 71, 255); pdf.setFont(undefined, "bold");
-      pdf.text(`${topic.toUpperCase()}  (${arts.length})`, margin + 3, y + 4);
-      y += 14;
-
-      arts.forEach((a) => {
-        if (y > pageHeight - margin - 25) { pdf.addPage(); y = margin; }
-
-        // Signal dot
-        const isStrong = a.signal_strength === "Strong";
-        pdf.setFillColor(isStrong ? 26 : 180, isStrong ? 138 : 180, isStrong ? 74 : 180);
-        pdf.circle(margin + 2, y + 1, 1.5, "F");
-
-        // Title
-        pdf.setFontSize(9); pdf.setTextColor(17, 17, 17); pdf.setFont(undefined, "bold");
-        const titleLines = pdf.splitTextToSize(a.title, maxWidth - 10);
-        pdf.text(titleLines, margin + 7, y + 2);
-        y += titleLines.length * 4 + 1;
-
-        // Summary snippet
-        if (a.summary) {
-          const snippet = a.summary.length > 180 ? a.summary.slice(0, 180) + "…" : a.summary;
-          pdf.setFontSize(8); pdf.setTextColor(100, 100, 100); pdf.setFont(undefined, "normal");
-          const sumLines = pdf.splitTextToSize(snippet, maxWidth - 10);
-          pdf.text(sumLines, margin + 7, y + 1);
-          y += sumLines.length * 3.5 + 1;
-        }
-
-        // Source + date
-        pdf.setFontSize(7.5); pdf.setTextColor(153, 153, 153);
-        pdf.text(`${a.source || ""}  ·  ${a.published_at ? new Date(a.published_at).toLocaleDateString() : ""}  ·  ${a.signal_strength || ""}`, margin + 7, y + 1);
-        y += 7;
-      });
-
-      y += 4;
-    });
-
-    // Footer
-    const totalPages = pdf.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      pdf.setPage(i);
-      pdf.setFontSize(7.5); pdf.setTextColor(180, 180, 180);
-      pdf.text(`AI Watch  ·  Strategic Intelligence Platform  ·  ${todayIso}  ·  Page ${i}/${totalPages}`, margin, pageHeight - 8);
-    }
-
-    pdf.save(`ai-watch-daily-brief-${todayIso}.pdf`);
-  };
 
   const handleSave = async () => {
     if (articles.length === 0) { setError("No articles to save."); return; }
@@ -594,7 +451,7 @@ function DailyReportModal({ onClose, onSaved }) {
         {/* Footer */}
         <div style={{ padding: "16px 24px", borderTop: `1px solid ${B.gray200}`, display: "flex", gap: 10, justifyContent: "flex-end", background: B.gray50, flexShrink: 0 }}>
           <button
-            onClick={buildDailyPDF}
+            onClick={() => generatePDF(buildDailyData())}
             disabled={loading || articles.length === 0}
             style={{
               padding: "9px 20px", borderRadius: 6,
@@ -646,7 +503,7 @@ function ReportsList({ onSelectReport, refreshKey }) {
     setDownloading(reportId);
     try {
       const report = await getReport(reportId);
-      buildPDF(report);
+      generatePDF(report);
     } catch (err) {
       setError("Failed to generate PDF: " + err.message);
     } finally {
@@ -784,7 +641,7 @@ function ReportDetail({ reportId, onClose, onDelete }) {
           </button>
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={() => buildPDF(report)}
+              onClick={() => generatePDF(report)}
               style={{ background: B.white, color: ACCENT, border: "none", padding: "7px 16px", borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 700 }}
             >
               Download PDF

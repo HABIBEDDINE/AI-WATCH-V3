@@ -552,7 +552,7 @@ export default function AIWatchDXC() {
         {/* ── LEFT SIDEBAR ── */}
         <div className={`aw-sidebar${!sidebarOpen ? " aw-sidebar-hidden" : ""}`} style={{
           width:210, background:B.white, borderRight:`1px solid ${B.gray100}`,
-          padding:"24px 0", display:"flex", flexDirection:"column",
+          padding:"0", display:"flex", flexDirection:"column",
           overflowY:"auto", flexShrink:0,
           ...(isMobile ? {
             position:"fixed", top:56, left:0, height:"calc(100vh - 56px)",

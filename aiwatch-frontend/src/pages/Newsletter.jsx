@@ -599,7 +599,7 @@ export default function Newsletter() {
   };
 
   return (
-    <div style={{ background: B.white, padding: isMobile ? "16px" : "24px 28px", minHeight: "100%" }}>
+    <div className="pad-mobile" style={{ background: B.white, padding: "24px 28px", minHeight: "100%" }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
@@ -662,7 +662,7 @@ export default function Newsletter() {
       </div>
 
       {/* Main layout */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, alignItems: "start" }}>
+      <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
         {/* Left: Article selector */}
         <div style={{
           border: `1px solid ${B.gray200}`,
@@ -714,7 +714,7 @@ export default function Newsletter() {
             </div>
           )}
 
-          <div style={{ maxHeight: 520, overflowY: "auto" }}>
+          <div className="article-pool" style={{ maxHeight: 520, overflowY: "auto" }}>
             {articles.map((article, i) => (
               <ArticleRow
                 key={article.id ?? i}
@@ -897,7 +897,7 @@ export default function Newsletter() {
 
           {/* Add subscriber — step 1: email input */}
           {addStep === "email" && (
-            <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 260 }}>
+            <div className="full-mobile" style={{ display: "flex", gap: 8, flex: 1, minWidth: 260 }}>
               <input
                 type="email"
                 value={emailInput}

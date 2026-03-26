@@ -202,9 +202,9 @@ export default function Solutions() {
       </div>
 
       {/* ── Solutions grid ── */}
-      <div style={{
+      <div className="solutions-grid" style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
         gap: 18,
         marginBottom: 40,
       }}>
@@ -214,14 +214,14 @@ export default function Solutions() {
       </div>
 
       {/* ── CTA section ── */}
-      <div style={{
+      <div className="cta-section" style={{
         border: `1px solid ${B.gray200}`,
         borderRadius: 10,
-        padding: isMobile ? "24px 20px" : "32px 36px",
+        padding: "32px 36px",
         display: "flex",
-        flexDirection: isMobile ? "column" : "row",
+        flexDirection: "row",
         justifyContent: "space-between",
-        alignItems: isMobile ? "stretch" : "center",
+        alignItems: "center",
         gap: 20,
         background: B.gray50,
       }}>
@@ -233,7 +233,7 @@ export default function Solutions() {
             Our DXC Data & AI team offers a tailored 30-minute discovery session to align the right solutions with your priorities.
           </p>
         </div>
-        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 10 }}>
+        <div className="cta-buttons" style={{ display: "flex", flexDirection: "row", gap: 10 }}>
           <button
             onMouseEnter={e => { e.currentTarget.style.background = "#5535e0"; }}
             onMouseLeave={e => { e.currentTarget.style.background = ACCENT; }}

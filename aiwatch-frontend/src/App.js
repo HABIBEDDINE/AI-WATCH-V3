@@ -494,9 +494,9 @@ export default function AIWatchDXC() {
       `}</style>
 
       {toasts.length > 0 && (
-        <div style={{ position:"fixed", top:72, right:20, zIndex:1000, display:"flex", flexDirection:"column", gap:8 }}>
+        <div className="aw-toast-wrap" style={{ position:"fixed", top:72, right:20, zIndex:1000, display:"flex", flexDirection:"column", gap:8 }}>
           {toasts.map(t => (
-            <div key={t.id} style={{
+            <div key={t.id} className="aw-toast-item" style={{
               minWidth:320, maxWidth:420,
               border:`1px solid ${t.kind === "error" ? B.red : B.blue}`,
               background:B.white,
@@ -550,15 +550,13 @@ export default function AIWatchDXC() {
       <div style={{ display:"flex", height:"calc(100vh - 56px)" }}>
 
         {/* ── LEFT SIDEBAR ── */}
-        <div style={{
+        <div className={`aw-sidebar${!sidebarOpen ? " aw-sidebar-hidden" : ""}`} style={{
           width:210, background:B.white, borderRight:`1px solid ${B.gray100}`,
           padding:"24px 0", display:"flex", flexDirection:"column",
           overflowY:"auto", flexShrink:0,
           ...(isMobile ? {
             position:"fixed", top:56, left:0, height:"calc(100vh - 56px)",
             zIndex:300, boxShadow:"4px 0 24px rgba(0,0,0,0.12)",
-            transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
-            transition:"transform 0.25s ease",
           } : {}),
         }}>
           {navTabs.map(t2 => {

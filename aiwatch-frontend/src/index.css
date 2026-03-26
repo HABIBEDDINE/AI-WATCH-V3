@@ -5,7 +5,6 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Prevent horizontal overflow on mobile */
   overflow-x: hidden;
 }
 
@@ -14,43 +13,89 @@ code {
     monospace;
 }
 
-/* Mobile: prevent content wider than screen */
 * { box-sizing: border-box; }
 
 /* Smooth momentum scroll on iOS */
 .scroll-touch { -webkit-overflow-scrolling: touch; }
 
-/* Chip/filter rows: always scroll horizontally without showing scrollbar */
-.chips-row {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+/* ── Grid helpers ── */
+.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-4col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+/* ── Table horizontal scroll ── */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── Stack on mobile ── */
+.stack-mobile { display: flex; }
+
+/* ── Filter chips — wraps on mobile ── */
+.filter-chips { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── Pagination bar ── */
+.pagination-bar { display: flex; justify-content: space-between; align-items: center; }
+
+/* ── Article card title + badge row ── */
+.article-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 10px; }
+
+/* ── Sidebar transition ── */
+.aw-sidebar { transition: transform 0.25s ease; }
+
+/* ── Tablet (≤ 900px) ── */
+@media (max-width: 900px) {
+  .grid-4col { grid-template-columns: 1fr 1fr !important; }
 }
-.chips-row::-webkit-scrollbar { display: none; }
 
-/* Tables always scroll horizontally on mobile */
+/* ── Mobile (≤ 768px) ── */
 @media (max-width: 768px) {
-  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .grid-2col   { grid-template-columns: 1fr !important; }
+  .grid-4col   { grid-template-columns: 1fr 1fr !important; }
+  .stack-mobile { flex-direction: column !important; }
+  .hide-mobile  { display: none !important; }
+  .full-mobile  { width: 100% !important; min-width: unset !important; max-width: 100% !important; }
+  .pad-mobile   { padding: 16px !important; }
 
-  /* No element should exceed viewport width */
+  /* CTA section */
+  .cta-section  { flex-direction: column !important; align-items: flex-start !important; padding: 20px !important; }
+  .cta-buttons  { width: 100% !important; flex-shrink: unset !important; flex-direction: column !important; }
+  .cta-buttons button { width: 100% !important; flex: unset !important; }
+
+  /* Solutions card grid */
+  .solutions-grid { grid-template-columns: 1fr !important; }
+
+  /* Toast notifications */
+  .aw-toast-wrap { left: 16px !important; right: 16px !important; top: 66px !important; }
+  .aw-toast-item { min-width: unset !important; max-width: 100% !important; width: 100% !important; }
+
+  /* Modals */
+  .modal-inner { width: 96vw !important; max-height: 92vh !important; }
+
+  /* Chart containers */
+  .chart-container { min-height: 200px !important; }
+
+  /* DataPreview page */
+  .data-preview-page { padding: 16px !important; }
+
+  /* Newsletter article pool */
+  .article-pool { max-height: 300px !important; }
+
+  /* Filter chips — wrap instead of scroll on mobile */
+  .filter-chips { flex-wrap: wrap !important; overflow-x: visible !important; }
+
+  /* Sidebar drawer */
+  .aw-sidebar { position: fixed; top: 56px; left: 0; bottom: 0; z-index: 200; }
+  .aw-sidebar-hidden { transform: translateX(-100%); }
+
   img, video, iframe, embed, object { max-width: 100%; }
 }
 
-/* Pagination bar stacks on small phones */
+/* ── Small mobile (≤ 480px) ── */
 @media (max-width: 480px) {
-  .pagination-bar {
-    flex-direction: column !important;
-    gap: 10px !important;
-    padding: 12px 14px !important;
-  }
-  .pagination-nav {
-    display: flex !important;
-    justify-content: space-between !important;
-    width: 100% !important;
-  }
-  .pagination-page-info {
-    text-align: center !important;
-  }
+  .grid-4col { grid-template-columns: 1fr !important; }
+  .grid-2col { grid-template-columns: 1fr !important; }
+
+  /* Pagination bar stacks vertically */
+  .pagination-bar { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
+
+  /* Article card: badge drops below title */
+  .article-card-header { flex-direction: column !important; align-items: flex-start !important; gap: 6px !important; }
 }

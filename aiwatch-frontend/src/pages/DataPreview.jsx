@@ -230,13 +230,12 @@ function DataTable({ articles, loading, error, searchQuery, setSearchQuery }) {
         </div>
       )}
 
-      <div style={{
+      <div className="table-scroll" style={{
         background: B.white,
         border: `1px solid ${B.gray100}`,
         borderRadius: 4,
         overflow: "auto",
         boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-        WebkitOverflowScrolling: "touch",
       }}>
         <table style={{ width: "100%", minWidth: 600, borderCollapse: "collapse", fontSize: 11 }}>
           <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray100}` }}>
@@ -302,7 +301,7 @@ function DataTable({ articles, loading, error, searchQuery, setSearchQuery }) {
                   background: idx % 2 === 0 ? B.white : B.gray50,
                 }}>
                   <td style={{ padding: "12px 16px", color: B.gray500 }}>{idx + 1}</td>
-                  <td style={{ padding: "12px 16px", color: B.gray900, fontWeight: 600, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <td style={{ padding: "12px 16px", color: B.gray900, fontWeight: 600, maxWidth: "30vw", minWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {article.title}
                   </td>
                   <td style={{ padding: "12px 16px", color: B.gray600, fontSize: 10 }}>{article.source}</td>
@@ -459,7 +458,7 @@ function Charts({ articles }) {
       </div>
 
       {/* ── KPI ROW ── */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
+      <div className="grid-4col" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
         <KpiCard label="Articles"       value={filtered.length}  sub={selectedTopic === "All" ? "all topics" : selectedTopic} />
         <KpiCard label="Strong Signals" value={`${strongPct}%`}  sub={`${strong} strong · ${weak} weak`} />
         <KpiCard label="Avg Relevance"  value={avgRel}           sub="score out of 10" />
@@ -467,7 +466,7 @@ function Charts({ articles }) {
       </div>
 
       {/* ── ROW 1: Signal + Relevance ── */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
+      <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
 
         <ChartPanel title="Signal Distribution" subtitle={`Strong vs Weak · ${filtered.length} articles${selectedTopic !== "All" ? ` · ${selectedTopic}` : ""}`}>
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
@@ -610,14 +609,14 @@ function FundingAndActors() {
   }, []);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
+    <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
       {/* Funding Rounds */}
       <div>
         <h3 style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: B.gray900 }}>💰 Funding Rounds</h3>
         <p style={{ fontSize: 10, color: B.gray500, marginBottom: 12 }}>
           AI/Tech funding announcements mentioned in news articles {loading && "(Updating...)"}
         </p>
-        <div style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div className="table-scroll" style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflowX: "auto" }}>
           <table style={{ width: "100%", minWidth: 380, borderCollapse: "collapse", fontSize: 11 }}>
             <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray200}` }}>
               <tr>
@@ -654,7 +653,7 @@ function FundingAndActors() {
         <p style={{ fontSize: 10, color: B.gray500, marginBottom: 12 }}>
           Publications publishing your topics (based on loaded articles) {loading && "(Updating...)"}
         </p>
-        <div style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div className="table-scroll" style={{ background: B.white, border: `1px solid ${B.gray200}`, borderRadius: 2, overflowX: "auto" }}>
           <table style={{ width: "100%", minWidth: 320, borderCollapse: "collapse", fontSize: 11 }}>
             <thead style={{ background: B.gray50, borderBottom: `1px solid ${B.gray200}` }}>
               <tr>

@@ -187,7 +187,7 @@ function GenerateReportModal({ onClose, onSaved }) {
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 1000,
     }}>
-      <div style={{
+      <div className="modal-inner" style={{
         background: B.white, borderRadius: 10,
         width: "min(700px, 95vw)", maxHeight: "90vh",
         display: "flex", flexDirection: "column",
@@ -224,7 +224,7 @@ function GenerateReportModal({ onClose, onSaved }) {
                 borderRadius: 6, fontSize: 13, outline: "none",
               }}
             />
-            <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+            <div className="filter-chips">
               {TOPICS.map(t => (
                 <button key={t} onClick={() => setTopic(t)} style={{
                   flexShrink: 0, padding: "6px 12px", borderRadius: 999,

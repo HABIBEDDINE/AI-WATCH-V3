@@ -330,39 +330,8 @@ export default function Explore() {
     : "—";
 
   return (
-    <div style={{ background: B.white, padding: isMobile ? "16px" : "24px 28px", minHeight: "100%" }}>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Article card: badge on its own line below title on mobile */
-        @media (max-width: 768px) {
-          .article-card-header {
-            flex-direction: column !important;
-            gap: 6px !important;
-          }
-          .signal-badge {
-            align-self: flex-start !important;
-            margin-top: 0 !important;
-          }
-        }
-
-        /* Pagination: stack into two rows on small phones */
-        @media (max-width: 480px) {
-          .pagination-bar {
-            flex-direction: column !important;
-            gap: 10px !important;
-            padding: 12px 14px !important;
-          }
-          .pagination-nav {
-            display: flex !important;
-            justify-content: space-between !important;
-            width: 100% !important;
-          }
-          .pagination-page-info {
-            text-align: center !important;
-          }
-        }
-      `}</style>
+    <div className="pad-mobile" style={{ background: B.white, padding: "24px 28px", minHeight: "100%" }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* ── PAGE HEADER ── */}
       <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 10 : 16, marginBottom: 20 }}>
@@ -404,16 +373,16 @@ export default function Explore() {
       </div>
 
       {/* ── KPI STRIP (3 cards) ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: isMobile ? 8 : 12, marginBottom: 20 }}>
+      <div className="grid-4col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
         <StatCard label="Articles Today"  value={totalCount} />
         <StatCard label="Strong Signals"  value={strongCount} />
         <StatCard label="Avg Relevance"   value={articles.length ? `${avgRelevance}/10` : "—"} />
       </div>
 
       {/* ── MERGED TOOLBAR: search left, topic chips right ── */}
-      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", gap: 10, marginBottom: 20 }}>
+      <div className="stack-mobile" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 }}>
         {/* Search */}
-        <div style={{ position: "relative", flexShrink: 0, width: isMobile ? "100%" : 260 }}>
+        <div className="full-mobile" style={{ position: "relative", flexShrink: 0, width: 260 }}>
           <Search
             size={14}
             strokeWidth={1.8}
@@ -440,7 +409,7 @@ export default function Explore() {
         </div>
 
         {/* Topic filter chips — wrap on mobile, scroll on desktop */}
-        <div style={{ flex: 1, overflowX: isMobile ? "visible" : "auto", display: "flex", gap: 6, flexWrap: isMobile ? "wrap" : "nowrap", minWidth: 0, paddingBottom: 2 }}>
+        <div className="filter-chips" style={{ flex: 1, minWidth: 0, paddingBottom: 2 }}>
           {TOPICS.map(topic => {
             const active = selectedTopic === topic;
             return (

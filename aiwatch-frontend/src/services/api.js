@@ -164,6 +164,15 @@ export async function generateSummary(article) {
   });
 }
 
+export async function matchSolutions(payload) {
+  return request("/api/match-solutions", {
+    method: "POST",
+    body: payload,
+    timeoutMs: 30000,
+    retries: 0,
+  });
+}
+
 export async function getLiveSignals() {
   return request("/api/signals/live");
 }

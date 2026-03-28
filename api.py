@@ -67,6 +67,25 @@ DEFAULT_PRODUCT_LIBRARY = {
 
 CACHE_TTL_SECONDS = 180
 _summary_cache: Dict[Tuple[str, int, int], dict] = {}
+_match_solutions_cache: Dict[str, dict] = {}   # keyed by md5(title|industry)
+
+DXC_SOLUTIONS_CATALOG = [
+    "1. Assessment Advisor — Comprehensive evaluation of data & AI landscape with strategy, prioritization & alignment to standards.",
+    "2. Data Health — End-to-end platform for data quality with automated validation, monitoring & compliance reporting.",
+    "3. Intelligent Analytics — Transform raw data into actionable insights using ML, NLP & advanced statistical models.",
+    "4. ROI Simulator — Measure & communicate business value of data & AI investments with proven financial models.",
+    "5. Marketing Agents — AI agents orchestration that automates marketing tasks like segmentation & personalized content generation.",
+    "6. Incidents Management — Detect, manage & resolve technical incidents with AI anomaly detection & root cause analysis.",
+    "7. AI Watch — Strategic intelligence platform analyzing tech trends, startups & innovations for actionable insights.",
+    "8. AI Use Case Radar — Cross-industry intelligence tool that scans & prioritizes emerging AI trends and use cases.",
+    "9. AI Implementation Framework — Scalable, responsible & business-aligned approach to developing & deploying AI/ML solutions.",
+    "10. AI Workbench — Modular architecture to build, manage & scale agent-based AI systems powered by LLMs.",
+    "11. AO Handler — Intelligent solution discovering tenders, evaluating eligibility & auto-generating winning proposals.",
+    "12. Sandbox AI — Controlled environment to test AI models safely with limited access, risk analysis & audit trails.",
+    "13. StartUp Connect AI — AI-powered engine that discovers startups & matches them to business needs with fit scoring.",
+    "14. POC Workflow Tool — AI platform that structures & manages the innovation cycle from needs identification to POC decisions.",
+    "15. HR Assistant — Conversational AI assistant that manages HR inquiries & integrates seamlessly with ERP/CRM systems.",
+]
 
 
 def get_topic_from_persona(persona: str) -> str:
@@ -97,6 +116,17 @@ def _set_cached_summary(persona: str, max_articles: int, days_back: int, data: L
         "ts": time.time(),
         "data": [dict(item) for item in data],
     }
+
+
+def _openai_keys() -> List[str]:
+    """Return all configured OpenAI keys in priority order (primary first, backup second)."""
+    import os as _os
+    keys = []
+    for var in ("OPENAI_API_KEY", "OPENAI_API_KEY_BACKUP"):
+        k = _os.getenv(var, "").strip()
+        if k:
+            keys.append(k)
+    return keys
 
 
 def get_summarized_articles(persona: str, max_articles: int, days_back: int = 3) -> List[dict]:
@@ -596,12 +626,10 @@ async def summarize_article_endpoint(article: dict):
 
     generated_summary = None
 
-    openai_key = _os.getenv("OPENAI_API_KEY")
-    if openai_key:
+    for openai_key in _openai_keys():
         try:
             from openai import OpenAI as _OpenAI
             client = _OpenAI(api_key=openai_key)
-            # Run in thread — synchronous SDK must not block the event loop
             resp = await _asyncio.to_thread(
                 client.chat.completions.create,
                 model="gpt-4o-mini",
@@ -612,8 +640,9 @@ async def summarize_article_endpoint(article: dict):
                 max_tokens=300,
             )
             generated_summary = resp.choices[0].message.content.strip()
-        except Exception:
-            pass
+            break  # success — stop trying keys
+        except Exception as e:
+            print(f"[summarize] OpenAI key ...{openai_key[-6:]} failed: {e}")
 
     if not generated_summary:
         anthropic_key = _os.getenv("ANTHROPIC_API_KEY")
@@ -645,6 +674,102 @@ async def summarize_article_endpoint(article: dict):
                 break
 
     return {"summary": generated_summary}
+
+
+@app.post("/api/match-solutions")
+async def match_solutions_endpoint(payload: dict):
+    """Match an article or trend to the top 3 most relevant DXC solutions.
+    Never called automatically — only triggered by an explicit user click.
+    Results are cached in memory so repeat clicks cost zero API credits."""
+    print("✅ match-solutions endpoint hit")
+    import os as _os, asyncio as _asyncio, hashlib as _hashlib, json as _json
+
+    title    = payload.get("title", "")
+    summary  = payload.get("summary", "")
+    industry = payload.get("industry", "")
+    signal   = payload.get("signal", "")
+
+    # Return cached result immediately — no LLM call needed
+    cache_key = _hashlib.md5(f"{title}|{industry}".encode()).hexdigest()
+    if cache_key in _match_solutions_cache:
+        return _match_solutions_cache[cache_key]
+
+    solutions_text = "\n".join(DXC_SOLUTIONS_CATALOG)
+    system_msg = (
+        "You are a DXC Technology solutions advisor. "
+        "You match technology news and trends to specific DXC solutions and explain why each is relevant. "
+        "Always respond in English only."
+    )
+    prompt = (
+        f"A technology article/trend has been identified:\n"
+        f"Title: {title}\n"
+        f"Industry: {industry}\n"
+        f"Signal strength: {signal}\n"
+        f"Summary: {summary[:1500]}\n\n"
+        f"DXC Solutions available:\n{solutions_text}\n\n"
+        f"Identify the TOP 3 most relevant DXC solutions for this article/trend.\n"
+        f"For each match provide exactly one sentence explaining why it is relevant to this specific context.\n"
+        f'Respond ONLY as valid JSON in this exact format: {{"matches": [{{"solution": "Name", "explanation": "One sentence."}}]}}\n'
+        f"Return exactly 3 items. No markdown, no extra text outside the JSON."
+    )
+
+    result = None
+
+    for openai_key in _openai_keys():
+        try:
+            from openai import OpenAI as _OpenAI
+            client = _OpenAI(api_key=openai_key)
+            resp = await _asyncio.to_thread(
+                client.chat.completions.create,
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user",   "content": prompt},
+                ],
+                max_tokens=500,
+                response_format={"type": "json_object"},
+            )
+            parsed = _json.loads(resp.choices[0].message.content.strip())
+            if isinstance(parsed.get("matches"), list):
+                result = parsed["matches"]
+                break  # success — stop trying keys
+        except Exception as e:
+            print(f"[match-solutions] OpenAI key ...{openai_key[-6:]} failed: {e}")
+
+    if not result:
+        anthropic_key = _os.getenv("ANTHROPIC_API_KEY")
+        if anthropic_key:
+            try:
+                import anthropic as _anthropic
+                client = _anthropic.Anthropic(api_key=anthropic_key)
+                resp = await _asyncio.to_thread(
+                    client.messages.create,
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=500,
+                    system=system_msg,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = resp.content[0].text.strip()
+                # Strip markdown fences if the model added them
+                if raw.startswith("```"):
+                    raw = "\n".join(raw.split("\n")[1:])
+                    raw = raw.rsplit("```", 1)[0].strip()
+                parsed = _json.loads(raw)
+                if isinstance(parsed.get("matches"), list):
+                    result = parsed["matches"]
+            except Exception as e:
+                print(f"[match-solutions] Anthropic error: {e}")
+
+    if not result:
+        raise HTTPException(status_code=503, detail="No LLM available. Check OPENAI_API_KEY or ANTHROPIC_API_KEY in .env")
+
+    matches = [
+        {"solution": m.get("solution", ""), "explanation": m.get("explanation", "")}
+        for m in result[:3]
+    ]
+    response = {"matches": matches}
+    _match_solutions_cache[cache_key] = response
+    return response
 
 
 @app.get("/api/signals/live")

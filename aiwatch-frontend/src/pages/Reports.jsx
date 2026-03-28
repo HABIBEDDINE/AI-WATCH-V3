@@ -3,8 +3,8 @@ import { getReports, getReport, deleteReport, getArticles, saveReport } from "..
 import { generatePDF } from "../utils/generatePDF";
 import CategoryCombobox from "../components/CategoryCombobox";
 
-const ACCENT    = "#6B2C94";
-const ACCENT_BG = "#f5eefb";
+const ACCENT    = "#1A4A9E";
+const ACCENT_BG = "#e8eef8";
 
 const B = {
   purple:     ACCENT,
@@ -19,8 +19,8 @@ const B = {
   gray600:    "#444444",
   gray700:    "#222222",
   gray900:    "#111111",
-  green:      "#1a8a4a",
-  greenLight: "#e8f5ee",
+  green:      "#C45F00",
+  greenLight: "#fdf0e6",
   amber:      "#b45309",
   amberLight: "#fef3e2",
   red:        "#c0392b",

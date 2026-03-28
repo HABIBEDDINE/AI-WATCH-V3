@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 
 const B = {
-  purple:      "#6B2C94",
-  purpleDeep:  "#4A1870",
-  purpleLight: "#8B3DB5",
-  purplePale:  "#f5eefb",
-  purpleMid:   "#ede0f7",
+  purple:      "#1A4A9E",
+  purpleDeep:  "#102d6a",
+  purpleLight: "#4a7fd4",
+  purplePale:  "#e8eef8",
+  purpleMid:   "#d0dcea",
   white:       "#ffffff",
   gray50:      "#fafafa",
   gray100:     "#f4f4f4",
@@ -16,7 +16,7 @@ const B = {
   gray600:     "#444444",
   gray700:     "#222222",
   gray900:     "#111111",
-  green:       "#1a8a4a",
+  green:       "#C45F00",
   greenLight:  "#e8f5ee",
   red:         "#c0392b",
   redLight:    "#fdf0ef",
@@ -1224,18 +1224,18 @@ function buildReportHTML(answers, matches, profile) {
       <div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div>
      </div>`;
 
-  const dimColors = { challenge:"#6B2C94", goal:"#1a5fa8", industry:"#1a8a4a", readiness:"#b45309", timeline:"#1a5fa8" };
+  const dimColors = { challenge:"#1A4A9E", goal:"#1a5fa8", industry:"#C45F00", readiness:"#b45309", timeline:"#1a5fa8" };
   const dimLabels = { challenge:"Challenge Alignment", goal:"Goal Alignment", industry:"Industry Fit", readiness:"Maturity Fit", timeline:"Timeline Fit" };
   const dimWeights = { challenge:"35%", goal:"20%", industry:"15%", readiness:"15%", timeline:"10%" };
 
   const solutionBlocks = top5.map((sol, rank) => {
-    const fitColor = sol.matchScore >= 90 ? "#1a8a4a" : sol.matchScore >= 80 ? "#6B2C94" : sol.matchScore >= 70 ? "#1a5fa8" : "#b45309";
+    const fitColor = sol.matchScore >= 90 ? "#C45F00" : sol.matchScore >= 80 ? "#1A4A9E" : sol.matchScore >= 70 ? "#1a5fa8" : "#b45309";
     const fitLabel = sol.matchScore >= 90 ? "Excellent Match" : sol.matchScore >= 80 ? "Strong Match" : sol.matchScore >= 70 ? "Good Match" : "Potential Match";
 
     const outcomeRows = sol.outcomes.map(o =>
       `<tr>
         <td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#444">${o.metric}</td>
-        <td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:700;color:#6B2C94;text-align:right">${o.value}</td>
+        <td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:700;color:#1A4A9E;text-align:right">${o.value}</td>
         <td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;font-size:11px;color:#999;text-align:right">${o.timeframe}</td>
       </tr>`
     ).join("");
@@ -1244,10 +1244,10 @@ function buildReportHTML(answers, matches, profile) {
       `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px">
         <tr>
           <td style="width:28px;vertical-align:top;padding-top:1px">
-            <div style="width:22px;height:22px;border-radius:50%;background:#6B2C94;color:#fff;font-size:10px;font-weight:800;text-align:center;line-height:22px">${ph.n}</div>
+            <div style="width:22px;height:22px;border-radius:50%;background:#1A4A9E;color:#fff;font-size:10px;font-weight:800;text-align:center;line-height:22px">${ph.n}</div>
           </td>
           <td style="vertical-align:top;padding-left:10px">
-            <div style="font-size:12px;font-weight:700;color:#111;margin-bottom:2px">${ph.title} <span style="font-weight:400;color:#6B2C94">&mdash; ${ph.duration}</span></div>
+            <div style="font-size:12px;font-weight:700;color:#111;margin-bottom:2px">${ph.title} <span style="font-weight:400;color:#1A4A9E">&mdash; ${ph.duration}</span></div>
             <div style="font-size:11px;color:#666;line-height:1.55">${ph.desc}</div>
           </td>
         </tr>
@@ -1272,14 +1272,14 @@ function buildReportHTML(answers, matches, profile) {
 
     const reasons = (sol.matchReasons || []).map(r =>
       `<div style="display:flex;gap:8px;margin-bottom:7px">
-        <span style="color:#1a8a4a;font-size:13px;flex-shrink:0">✓</span>
+        <span style="color:#C45F00;font-size:13px;flex-shrink:0">✓</span>
         <span style="font-size:12px;color:#444;line-height:1.5">${r}</span>
       </div>`
     ).join("");
 
     return `
-      <div style="margin-bottom:28px;border:2px solid ${rank === 0 ? "#6B2C94" : "#e8e8e8"};border-radius:5px;page-break-inside:avoid">
-        ${rank === 0 ? `<div style="background:#6B2C94;padding:7px 20px;font-size:10px;font-weight:800;color:#fff;letter-spacing:1px;text-transform:uppercase">Best Match for Your Profile</div>` : ""}
+      <div style="margin-bottom:28px;border:2px solid ${rank === 0 ? "#1A4A9E" : "#e8e8e8"};border-radius:5px;page-break-inside:avoid">
+        ${rank === 0 ? `<div style="background:#1A4A9E;padding:7px 20px;font-size:10px;font-weight:800;color:#fff;letter-spacing:1px;text-transform:uppercase">Best Match for Your Profile</div>` : ""}
 
         <!-- Solution header -->
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;border-bottom:1px solid #e8e8e8">
@@ -1332,7 +1332,7 @@ function buildReportHTML(answers, matches, profile) {
   }).join("");
 
   const otherCards = others.map(sol => {
-    const c = sol.matchScore >= 70 ? "#6B2C94" : sol.matchScore >= 55 ? "#1a5fa8" : "#999";
+    const c = sol.matchScore >= 70 ? "#1A4A9E" : sol.matchScore >= 55 ? "#1a5fa8" : "#999";
     return `<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e8e8e8;border-radius:4px;margin-bottom:12px">
       <tr>
         <td style="padding:13px 16px 6px;vertical-align:middle">
@@ -1367,12 +1367,12 @@ function buildReportHTML(answers, matches, profile) {
     </div>`
   ).join("");
 
-  const urgencyColor = profile.urgency === "Critical" ? "#c0392b" : profile.urgency === "High" ? "#b45309" : profile.urgency === "Medium" ? "#1a5fa8" : "#1a8a4a";
+  const urgencyColor = profile.urgency === "Critical" ? "#c0392b" : profile.urgency === "High" ? "#b45309" : profile.urgency === "Medium" ? "#1a5fa8" : "#C45F00";
 
   const dxcLogo = `<svg width="120" height="34" viewBox="0 0 160 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <text x="0" y="36" font-family="Arial Black,Arial" font-weight="900" font-size="38" fill="#6B2C94">D</text>
-    <text x="26" y="36" font-family="Arial Black,Arial" font-weight="900" font-size="38" fill="#6B2C94">X</text>
-    <text x="54" y="36" font-family="Arial Black,Arial" font-weight="900" font-size="38" fill="#6B2C94">C</text>
+    <text x="0" y="36" font-family="Arial Black,Arial" font-weight="900" font-size="38" fill="#1A4A9E">D</text>
+    <text x="26" y="36" font-family="Arial Black,Arial" font-weight="900" font-size="38" fill="#1A4A9E">X</text>
+    <text x="54" y="36" font-family="Arial Black,Arial" font-weight="900" font-size="38" fill="#1A4A9E">C</text>
     <text x="86" y="36" font-family="Arial,sans-serif" font-weight="400" font-size="13" fill="#666">Technology</text>
   </svg>`;
 
@@ -1384,9 +1384,9 @@ function buildReportHTML(answers, matches, profile) {
   </svg>`;
 
   const pageHeader = (section, title) =>
-    `<table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:2px solid #6B2C94;margin-bottom:28px">
+    `<table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:2px solid #1A4A9E;margin-bottom:28px">
       <tr>
-        <td style="padding-bottom:12px;font-size:10px;font-weight:700;color:#6B2C94;text-transform:uppercase;letter-spacing:1.5px">${section}</td>
+        <td style="padding-bottom:12px;font-size:10px;font-weight:700;color:#1A4A9E;text-transform:uppercase;letter-spacing:1.5px">${section}</td>
         <td style="padding-bottom:12px;font-size:17px;font-weight:800;color:#111;text-align:right">${title}</td>
       </tr>
     </table>`;
@@ -1401,13 +1401,13 @@ function buildReportHTML(answers, matches, profile) {
   body { font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; width:794px; margin:0 auto; }
   .page { width:794px; padding:52px 60px; }
   .cover { width:794px; height:1123px; padding:60px; background:#fff; }
-  .back-cover { width:794px; background:#6B2C94; padding:64px 60px; }
-  .section-label { font-size:10px; font-weight:700; color:#6B2C94; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px; }
+  .back-cover { width:794px; background:#1A4A9E; padding:64px 60px; }
+  .section-label { font-size:10px; font-weight:700; color:#1A4A9E; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px; }
   .section-title { font-size:17px; font-weight:800; color:#111; }
-  .divider { height:2px; background:#6B2C94; margin-bottom:28px; }
+  .divider { height:2px; background:#1A4A9E; margin-bottom:28px; }
   .card { border:1px solid #e8e8e8; border-radius:5px; padding:20px 22px; margin-bottom:20px; }
   .badge { display:inline-block; font-size:10px; font-weight:700; padding:3px 9px; border-radius:3px; text-transform:uppercase; letter-spacing:0.5px; }
-  .tag { display:inline-block; font-size:10px; padding:2px 8px; border-radius:2px; background:#f5eefb; color:#6B2C94; margin:2px 2px 2px 0; }
+  .tag { display:inline-block; font-size:10px; padding:2px 8px; border-radius:2px; background:#e8eef8; color:#1A4A9E; margin:2px 2px 2px 0; }
   .score-bar-track { height:6px; background:#e8e8e8; border-radius:3px; }
   .sol-header { background:#fafafa; border-bottom:1px solid #e8e8e8; padding:16px 22px; }
   .sol-body { padding:20px 22px; }
@@ -1432,8 +1432,8 @@ function buildReportHTML(answers, matches, profile) {
 
   <!-- Hero area -->
   <div style="margin-top:120px">
-    <div style="width:56px;height:4px;background:#6B2C94;margin-bottom:28px"></div>
-    <div style="font-size:12px;font-weight:700;color:#6B2C94;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:14px">AI Solution Matching Report</div>
+    <div style="width:56px;height:4px;background:#1A4A9E;margin-bottom:28px"></div>
+    <div style="font-size:12px;font-weight:700;color:#1A4A9E;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:14px">AI Solution Matching Report</div>
     <div style="font-size:40px;font-weight:900;color:#111;line-height:1.15;margin-bottom:20px">Your Personalised<br/>AI Strategy Brief</div>
     <div style="font-size:15px;color:#555;line-height:1.8;max-width:520px">
       Based on your profile and stated priorities, DXC has evaluated <strong>${matches.length} solutions</strong> and identified <strong>${top5.length} top recommendations</strong> tailored to your organisation's context.
@@ -1443,16 +1443,16 @@ function buildReportHTML(answers, matches, profile) {
   <!-- Profile cards (table-based for reliable layout) -->
   <table width="100%" cellpadding="0" cellspacing="10" style="margin-top:44px">
     <tr>
-      <td width="25%" style="padding:14px 18px;background:#f5eefb;border:1px solid #ede0f7;border-radius:4px">
-        <div style="font-size:10px;font-weight:700;color:#6B2C94;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px">Industry</div>
+      <td width="25%" style="padding:14px 18px;background:#e8eef8;border:1px solid #ede0f7;border-radius:4px">
+        <div style="font-size:10px;font-weight:700;color:#1A4A9E;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px">Industry</div>
         <div style="font-size:14px;font-weight:800;color:#111">${industryLabel}</div>
       </td>
-      <td width="25%" style="padding:14px 18px;background:#f5eefb;border:1px solid #ede0f7;border-radius:4px">
-        <div style="font-size:10px;font-weight:700;color:#6B2C94;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px">Organisation</div>
+      <td width="25%" style="padding:14px 18px;background:#e8eef8;border:1px solid #ede0f7;border-radius:4px">
+        <div style="font-size:10px;font-weight:700;color:#1A4A9E;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px">Organisation</div>
         <div style="font-size:14px;font-weight:800;color:#111">${sizeLabel}</div>
       </td>
-      <td width="25%" style="padding:14px 18px;background:#f5eefb;border:1px solid #ede0f7;border-radius:4px">
-        <div style="font-size:10px;font-weight:700;color:#6B2C94;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px">Primary Goal</div>
+      <td width="25%" style="padding:14px 18px;background:#e8eef8;border:1px solid #ede0f7;border-radius:4px">
+        <div style="font-size:10px;font-weight:700;color:#1A4A9E;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px">Primary Goal</div>
         <div style="font-size:14px;font-weight:800;color:#111">${goalLabel}</div>
       </td>
       <td width="25%" style="padding:14px 18px;background:${urgencyColor}12;border:1px solid ${urgencyColor}44;border-radius:4px">
@@ -1479,7 +1479,7 @@ function buildReportHTML(answers, matches, profile) {
   ${pageHeader("Section 1", "Client Needs Assessment")}
 
   <!-- Maturity score row -->
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5eefb;border-left:4px solid #6B2C94;border-radius:4px;margin-bottom:20px">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8eef8;border-left:4px solid #1A4A9E;border-radius:4px;margin-bottom:20px">
     <tr>
       <td style="padding:22px 24px;vertical-align:top">
         <div style="font-size:13px;font-weight:700;color:#111;margin-bottom:8px">${industryLabel} &middot; ${sizeLabel}</div>
@@ -1489,12 +1489,12 @@ function buildReportHTML(answers, matches, profile) {
         <p style="font-size:12px;color:#555;line-height:1.7;margin-top:12px">${profile.narrative}</p>
       </td>
       <td style="padding:22px 24px;text-align:center;vertical-align:top;width:140px;border-left:1px solid #ede0f7">
-        <div style="font-size:44px;font-weight:900;color:#6B2C94;line-height:1">${profile.maturityScore}</div>
+        <div style="font-size:44px;font-weight:900;color:#1A4A9E;line-height:1">${profile.maturityScore}</div>
         <div style="font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.6px;margin-top:4px">AI Maturity Index</div>
         <div class="score-bar-track" style="margin-top:8px">
-          <div style="width:${profile.maturityScore}%;height:100%;background:#6B2C94;border-radius:3px"></div>
+          <div style="width:${profile.maturityScore}%;height:100%;background:#1A4A9E;border-radius:3px"></div>
         </div>
-        <div style="font-size:11px;font-weight:700;color:#6B2C94;margin-top:6px">${profile.profile.label}</div>
+        <div style="font-size:11px;font-weight:700;color:#1A4A9E;margin-top:6px">${profile.profile.label}</div>
       </td>
     </tr>
   </table>
@@ -1508,11 +1508,11 @@ function buildReportHTML(answers, matches, profile) {
   <!-- Industry Benchmark -->
   <div class="card">
     <div class="section-label" style="margin-bottom:14px">Industry Benchmark</div>
-    <div style="background:#f5eefb;border-left:3px solid #6B2C94;padding:12px 16px;border-radius:3px;margin-bottom:12px">
+    <div style="background:#e8eef8;border-left:3px solid #1A4A9E;padding:12px 16px;border-radius:3px;margin-bottom:12px">
       <p style="font-size:12px;color:#555;line-height:1.65;font-style:italic">&ldquo;${profile.benchmark.stat}&rdquo;</p>
     </div>
     <div style="font-size:11px;color:#999;margin-bottom:3px">Reference peers:</div>
-    <div style="font-size:12px;font-weight:700;color:#6B2C94">${profile.benchmark.peers}</div>
+    <div style="font-size:12px;font-weight:700;color:#1A4A9E">${profile.benchmark.peers}</div>
   </div>
 </div>
 
@@ -1538,7 +1538,7 @@ ${others.length > 0 ? `
     <div style="font-size:14px;color:rgba(255,255,255,0.75);line-height:1.8;max-width:460px;margin-bottom:32px">
       Book a free 30-minute session with a DXC Data &amp; AI advisor to validate these recommendations and define your implementation roadmap.
     </div>
-    <div style="display:inline-block;padding:13px 26px;background:#fff;border-radius:4px;font-size:13px;font-weight:700;color:#6B2C94">
+    <div style="display:inline-block;padding:13px 26px;background:#fff;border-radius:4px;font-size:13px;font-weight:700;color:#1A4A9E">
       Contact DXC &mdash; dxc.com/ai-advisory
     </div>
   </div>

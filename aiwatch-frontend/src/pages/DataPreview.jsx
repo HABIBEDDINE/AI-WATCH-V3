@@ -10,9 +10,9 @@ import {
 import { getArticles } from "../services/api";
 
 const B = {
-  purple: "#6B2C94",
-  purpleDeep: "#4A1870",
-  purplePale: "#f5eefb",
+  purple: "#1A4A9E",
+  purpleDeep: "#102d6a",
+  purplePale: "#e8eef8",
   white: "#ffffff",
   gray50: "#fafafa",
   gray100: "#f4f4f4",
@@ -339,9 +339,9 @@ function DataTable({ articles, loading, error, searchQuery, setSearchQuery }) {
   );
 }
 
-const P = "#6B2C94";
-const P_PALE = "#f5eefb";
-const P_LIGHT = "#c4a0d8";
+const P = "#1A4A9E";
+const P_PALE = "#e8eef8";
+const P_LIGHT = "#4a7fd4";
 const GRAY_BORDER = "#e8e8e8";
 const GRAY_TEXT = "#999";
 const DARK_TEXT = "#111";

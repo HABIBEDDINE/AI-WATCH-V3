@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { getArticles, getNewsletterStatus, sendNewsletterNow, subscribeEmail, unsubscribeEmail } from "../services/api";
 
 const B = {
-  purple: "#6B2C94",
-  purpleDeep: "#4A1870",
-  purplePale: "#f5eefb",
-  purpleMid: "#ede0f7",
+  purple: "#1A4A9E",
+  purpleDeep: "#102d6a",
+  purplePale: "#e8eef8",
+  purpleMid: "#d0dcea",
   white: "#ffffff",
   gray50: "#fafafa",
   gray100: "#f4f4f4",
@@ -16,8 +16,8 @@ const B = {
   gray600: "#444444",
   gray700: "#222222",
   gray900: "#111111",
-  green: "#1a8a4a",
-  greenLight: "#e8f5ee",
+  green: "#C45F00",
+  greenLight: "#fdf0e6",
   amber: "#b45309",
   amberLight: "#fef3e2",
   blue: "#1a5fa8",
@@ -33,11 +33,11 @@ const INDUSTRY_TAGS = ["AI", "Fintech", "HealthTech", "Cybersecurity", "CleanTec
 
 const INDUSTRY_COLORS = {
   AI:            { bg: B.blueLight,  color: "#1a5fa8" },
-  Fintech:       { bg: B.greenLight, color: "#1a8a4a" },
+  Fintech:       { bg: B.greenLight, color: "#C45F00" },
   HealthTech:    { bg: B.redLight,   color: "#c0392b" },
   Cybersecurity: { bg: B.amberLight, color: "#b45309" },
   CleanTech:     { bg: "#e8f5f0",    color: "#0f7b5f" },
-  Robotics:      { bg: B.purplePale, color: "#6B2C94" },
+  Robotics:      { bg: B.purplePale, color: "#1A4A9E" },
 };
 
 const TOPIC_LABELS = {
@@ -51,7 +51,7 @@ const TOPIC_LABELS = {
 };
 
 const SIGNAL_BADGE = {
-  Strong: { bg: "#e8f5ee", color: "#1a8a4a", label: "Strong Signal" },
+  Strong: { bg: "#fdf0e6", color: "#C45F00", label: "Strong Signal" },
   Weak:   { bg: "#fef3e2", color: "#b45309", label: "Emerging Signal" },
 };
 

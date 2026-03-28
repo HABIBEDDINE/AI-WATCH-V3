@@ -1,7 +1,7 @@
 const B = {
-  purple: "#6B2C94",
-  purpleDeep: "#4A1870",
-  purplePale: "#f5eefb",
+  purple: "#1A4A9E",
+  purpleDeep: "#102d6a",
+  purplePale: "#e8eef8",
   white: "#ffffff",
   gray200: "#e8e8e8",
   gray400: "#999999",

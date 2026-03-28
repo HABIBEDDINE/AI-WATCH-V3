@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 
-const ACCENT     = "#6B2C94";
-const ACCENT_BG  = "#f5eefb";
+const ACCENT     = "#1A4A9E";
+const ACCENT_BG  = "#e8eef8";
 const CATEGORIES = [
   "All Industries",
   "AI",
@@ -88,7 +88,7 @@ export default function CategoryCombobox({ onSelect, selected: externalSelected,
               <div
                 key={cat}
                 onClick={() => handleSelect(cat)}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = "#f9f7ff"; }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = "#e8eef8"; }}
                 onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
                 style={{
                   padding: "9px 14px",

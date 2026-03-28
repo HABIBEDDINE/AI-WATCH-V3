@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { getArticle, generateSummary } from "../services/api";
+import { getArticle, generateSummary, matchSolutions } from "../services/api";
 import { cleanText } from "../utils/cleanText";
 
-const ACCENT = "#6B2C94";
+const ACCENT = "#1A4A9E";
 const B = {
   purple:     ACCENT,
-  purplePale: "#f5eefb",
+  purplePale: "#e8eef8",
   white:      "#ffffff",
   gray50:     "#fafafa",
   gray100:    "#f4f4f4",
@@ -17,8 +17,8 @@ const B = {
   gray600:    "#444444",
   gray700:    "#222222",
   gray900:    "#111111",
-  green:      "#1a8a4a",
-  greenLight: "#e8f5ee",
+  green:      "#C45F00",
+  greenLight: "#fdf0e6",
   amber:      "#b45309",
   amberLight: "#fef3e2",
   darkBg:     "#0a0a0a",
@@ -60,6 +60,9 @@ export default function ArticleDetail() {
   const [loading, setLoading]         = useState(!location.state?.article);
   const [aiLoading, setAiLoading]     = useState(false);
   const [aiError, setAiError]         = useState(null);
+  const [matchResult, setMatchResult] = useState(null);   // array of {solution, explanation}
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError]   = useState(null);
   const [isMobile, setIsMobile]       = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -149,6 +152,25 @@ export default function ArticleDetail() {
       }
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const handleMatchSolutions = async () => {
+    if (matchResult) return;   // already cached — show existing result
+    setMatchLoading(true);
+    setMatchError(null);
+    try {
+      const res = await matchSolutions({
+        title:    article.title || "",
+        summary:  summary || article.description || "",
+        industry: article.topic || article.industry || "General",
+        signal:   article.signal_strength || "",
+      });
+      setMatchResult(res.matches || []);
+    } catch (err) {
+      setMatchError(err.message || "Failed to match solutions.");
+    } finally {
+      setMatchLoading(false);
     }
   };
 
@@ -319,7 +341,7 @@ export default function ArticleDetail() {
                 <span style={{ fontSize: 12, fontWeight: 700, color: B.gray400, minWidth: 80, paddingTop: 3 }}>Keywords</span>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {article.keywords.map(kw => (
-                    <span key={kw} style={{ background: "#f3f0ff", color: ACCENT, fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 20, border: "1px solid #e0d0f5" }}>
+                    <span key={kw} style={{ background: "#e8eef8", color: ACCENT, fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 20, border: "1px solid #b8ccee" }}>
                       {kw}
                     </span>
                   ))}
@@ -327,6 +349,81 @@ export default function ArticleDetail() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── MATCH DXC SOLUTIONS ── */}
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: B.gray900, letterSpacing: 1.2, textTransform: "uppercase" }}>
+              DXC Solution Match
+            </div>
+            {!matchResult && (
+              <button
+                onClick={handleMatchSolutions}
+                disabled={matchLoading}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 16px", borderRadius: 6,
+                  border: `1.5px solid ${ACCENT}`,
+                  background: matchLoading ? B.purplePale : ACCENT,
+                  color: matchLoading ? ACCENT : "#fff",
+                  fontSize: 12, fontWeight: 700, cursor: matchLoading ? "not-allowed" : "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {matchLoading ? (
+                  <>
+                    <span style={{ width: 12, height: 12, border: `2px solid ${ACCENT}40`, borderTop: `2px solid ${ACCENT}`, borderRadius: "50%", display: "inline-block", animation: "spin 0.8s linear infinite" }} />
+                    Matching...
+                  </>
+                ) : (
+                  "Match DXC Solutions"
+                )}
+              </button>
+            )}
+          </div>
+
+          {matchError && (
+            <div style={{ fontSize: 12, color: B.amber, background: B.amberLight, border: `1px solid ${B.amber}40`, padding: "8px 12px", borderRadius: 6, marginBottom: 10 }}>
+              {matchError}
+            </div>
+          )}
+
+          {matchResult && matchResult.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {matchResult.map((m, i) => (
+                <div key={i} style={{
+                  display: "flex", gap: 12, alignItems: "flex-start",
+                  padding: "14px 16px", background: B.white,
+                  border: `1px solid ${B.gray200}`, borderLeft: `3px solid ${ACCENT}`,
+                  borderRadius: 6,
+                }}>
+                  <span style={{
+                    flexShrink: 0, width: 22, height: 22, borderRadius: "50%",
+                    background: ACCENT, color: "#fff",
+                    fontSize: 11, fontWeight: 800,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {i + 1}
+                  </span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: B.gray900, marginBottom: 3 }}>
+                      {m.solution}
+                    </div>
+                    <div style={{ fontSize: 12, color: B.gray500, lineHeight: 1.6 }}>
+                      {m.explanation}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!matchResult && !matchLoading && !matchError && (
+            <div style={{ fontSize: 13, color: B.gray400, fontStyle: "italic" }}>
+              Click the button to find the most relevant DXC solutions for this article.
+            </div>
+          )}
         </div>
 
         {/* Key Actors */}

@@ -6,8 +6,8 @@ import { Search, LayoutGrid, List } from "lucide-react";
 import { cleanText } from "../utils/cleanText";
 import CategoryCombobox from "../components/CategoryCombobox";
 
-const ACCENT   = "#6B2C94";
-const ACCENT_BG = "#f5eefb";
+const ACCENT   = "#1A4A9E";
+const ACCENT_BG = "#e8eef8";
 
 const B = {
   purple:    ACCENT,
@@ -22,8 +22,8 @@ const B = {
   gray600:   "#444444",
   gray700:   "#222222",
   gray900:   "#111111",
-  green:     "#1a8a4a",
-  greenLight:"#e8f5ee",
+  green:     "#C45F00",
+  greenLight:"#fdf0e6",
   amber:     "#b45309",
   amberLight:"#fef3e2",
   blue:      "#1a5fa8",
@@ -596,12 +596,12 @@ export default function Explore() {
           fontSize: 13,
           fontWeight: 700,
           cursor: loading ? "not-allowed" : "pointer",
-          boxShadow: "0 4px 20px rgba(107,44,148,0.35)",
+          boxShadow: "0 4px 20px rgba(26,74,158,0.35)",
           transition: "background 0.15s, box-shadow 0.15s",
           letterSpacing: 0.2,
         }}
-        onMouseEnter={e => { if (!loading) e.currentTarget.style.boxShadow = "0 6px 28px rgba(107,44,148,0.5)"; }}
-        onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 4px 20px rgba(107,44,148,0.35)"; }}
+        onMouseEnter={e => { if (!loading) e.currentTarget.style.boxShadow = "0 6px 28px rgba(26,74,158,0.5)"; }}
+        onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 4px 20px rgba(26,74,158,0.35)"; }}
       >
         {loading ? (
           <span style={{

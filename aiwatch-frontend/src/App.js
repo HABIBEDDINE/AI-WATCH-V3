@@ -12,11 +12,11 @@ import ArticleDetail from "./pages/ArticleDetail";
 import Trends from "./pages/Trends";
 
 const B = {
-  purple:      "#6B2C94",
-  purpleDeep:  "#4A1870",
-  purpleLight: "#8B72FF",
-  purplePale:  "#f5eefb",
-  purpleMid:   "#ede0f7",
+  purple:      "#1A4A9E",
+  purpleDeep:  "#102d6a",
+  purpleLight: "#4a7fd4",
+  purplePale:  "#e8eef8",
+  purpleMid:   "#d0dcea",
   black:       "#000000",
   darkBg:      "#0a0a0a",
   darkSection: "#111111",
@@ -33,8 +33,8 @@ const B = {
   gray600:     "#444444",
   gray700:     "#222222",
   gray900:     "#111111",
-  green:       "#1a8a4a",
-  greenLight:  "#e8f5ee",
+  green:       "#C45F00",
+  greenLight:  "#fdf0e6",
   red:         "#c0392b",
   redLight:    "#fdf0ef",
   amber:       "#b45309",

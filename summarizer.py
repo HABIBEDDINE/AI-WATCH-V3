@@ -70,6 +70,8 @@ def summarize_article(article, client=None):
 9. Patents: Any patents filed, granted, or mentioned. Format: "Patent_Title | Company | Status (Filed/Granted/Pending)". Separate multiple with semicolons. Write "None" if not applicable.
 10. Publications: Any scientific papers, research studies, or academic publications mentioned. Format: "Title | Authors/Institution | Journal/Conference". Separate multiple with semicolons. Write "None" if not applicable.
 
+IMPORTANT: Respond in English only. The summary and all fields must be in English regardless of the article's original language.
+
 Article:
 {full_text}
 
@@ -94,7 +96,7 @@ PUBLICATIONS: [Title | Authors | Journal; ...] or None
         response = client.chat.completions.create(
             model="gpt-4o-mini",  # Cost-effective for summarization
             messages=[
-                {"role": "system", "content": "You are a strategic intelligence analyst specializing in technology trends, emerging startups, and key market players. Be concise and actionable. Pay special attention to identifying companies, organizations, and key people."},
+                {"role": "system", "content": "You are a strategic intelligence analyst specializing in technology trends, emerging startups, and key market players. Be concise and actionable. Pay special attention to identifying companies, organizations, and key people. Always respond in English only, regardless of the article's original language."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=500,

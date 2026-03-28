@@ -90,13 +90,31 @@ export async function getRadar(persona = "cto", maxArticles = 8) {
   return request(`/api/radar?${params.toString()}`);
 }
 
-export async function getTrends(persona = "cto", maxArticles = 12) {
-  const params = new URLSearchParams({
-    persona,
-    max_articles: String(maxArticles),
-  });
+export async function getTrends(category) {
+  const params = new URLSearchParams();
+  if (category && category !== "all") params.append("category", category);
+  const query = params.toString();
+  return request(`/api/trends${query ? `?${query}` : ""}`);
+}
 
-  return request(`/api/trends?${params.toString()}`);
+export async function refreshTrends() {
+  return request("/api/trends/refresh", { method: "POST" });
+}
+
+export async function getDeepDive(trendId) {
+  return request(`/api/trends/${trendId}/deepdive`, { method: "POST" });
+}
+
+export async function saveTrend(trendId) {
+  return request(`/api/trends/${trendId}/save`, { method: "POST" });
+}
+
+export async function unsaveTrend(trendId) {
+  return request(`/api/trends/${trendId}/save`, { method: "DELETE" });
+}
+
+export async function getSavedTrends() {
+  return request("/api/trends/saved");
 }
 
 export async function getJourney(persona = "cto", maxArticles = 6) {
@@ -135,6 +153,15 @@ export async function getArticles(options = {}) {
 
 export async function getArticle(articleId) {
   return request(`/api/articles/${articleId}`);
+}
+
+export async function generateSummary(article) {
+  return request("/api/summarize", {
+    method: "POST",
+    body: article,
+    timeoutMs: 30000,
+    retries: 0,
+  });
 }
 
 export async function getLiveSignals() {
@@ -209,7 +236,7 @@ export async function getActors(page = 1, pageSize = 25) {
 }
 
 export async function getHealth() {
-  return request("/health", { retries: 0, timeoutMs: 5000 });
+  return request("/health", { retries: 0, timeoutMs: 10000 });
 }
 
 export async function getNewsletterStatus() {

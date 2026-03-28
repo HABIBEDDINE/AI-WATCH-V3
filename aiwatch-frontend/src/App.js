@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import { getFeed, getRadar, getHealth } from "./services/api";
-import { Compass, Lightbulb, Target, BarChart2, FileText, Mail } from "lucide-react";
+import { Compass, Lightbulb, Target, BarChart2, FileText, Mail, TrendingUp } from "lucide-react";
 import Explore from "./pages/Explore";
 import Solutions from "./pages/Solutions";
 import DataPreview from "./pages/DataPreview";
 import Reports from "./pages/Reports";
 import Newsletter from "./pages/Newsletter";
 import Matching from "./pages/Matching";
+import ArticleDetail from "./pages/ArticleDetail";
+import Trends from "./pages/Trends";
 
 const B = {
   purple:      "#6B2C94",
@@ -436,17 +438,24 @@ export default function AIWatchDXC() {
 
   useEffect(() => {
     let mounted = true;
+    let failCount = 0;
 
     const checkHealth = () => {
       getHealth()
         .then(() => {
           if (mounted) {
+            failCount = 0;
             setHealth({ status: "online" });
           }
         })
         .catch(() => {
           if (mounted) {
-            setHealth({ status: "offline" });
+            failCount += 1;
+            // Only flip to offline after 2 consecutive failures to avoid
+            // false positives while the server is busy with a long LLM call
+            if (failCount >= 2) {
+              setHealth({ status: "offline" });
+            }
           }
         });
     };
@@ -464,8 +473,9 @@ export default function AIWatchDXC() {
   const liveColor = health.status === "online" ? B.green : health.status === "offline" ? B.red : B.amber;
 
   const navTabs = [
-    { id:"feed",       label:"News Feed",       path:"/",             Icon: Compass,   desc:"Browse and filter live articles"    },
-    { id:"radar",      label:"Solutions",       path:"/solutions",    Icon: Lightbulb, desc:"DXC product recommendations"        },
+    { id:"feed",       label:"News Feed",       path:"/",             Icon: Compass,     desc:"Browse and filter live articles"    },
+    { id:"trends",     label:"AI Trends",       path:"/trends",       Icon: TrendingUp,  desc:"Live AI tools & model intelligence"  },
+    { id:"radar",      label:"Solutions",       path:"/solutions",    Icon: Lightbulb,   desc:"DXC product recommendations"        },
     { id:"matching",   label:"Solutions Match", path:"/matching",     Icon: Target,    desc:"Match signals to DXC products"      },
     { id:"data",       label:"Data Table",      path:"/data-preview", Icon: BarChart2, desc:"Sort and export article data"       },
     { id:"reports",    label:"My Reports",      path:"/reports",      Icon: FileText,  desc:"Save and download PDF reports"      },
@@ -542,7 +552,7 @@ export default function AIWatchDXC() {
       {isMobile && sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:299 }}
+          style={{ position:"fixed", top:56, right:0, bottom:0, left:0, background:"rgba(0,0,0,0.45)", zIndex:199 }}
         />
       )}
 
@@ -556,7 +566,7 @@ export default function AIWatchDXC() {
           overflowY:"auto", flexShrink:0,
           ...(isMobile ? {
             position:"fixed", top:56, left:0, height:"calc(100vh - 56px)",
-            zIndex:300, boxShadow:"4px 0 24px rgba(0,0,0,0.12)",
+            zIndex:200, boxShadow:"4px 0 20px rgba(0,0,0,0.15)",
           } : {}),
         }}>
           {navTabs.map(t2 => {
@@ -600,6 +610,8 @@ export default function AIWatchDXC() {
 
           <Routes>
             <Route path="/" element={<Explore />} />
+            <Route path="/article/:id" element={<ArticleDetail />} />
+            <Route path="/trends" element={<Trends />} />
             <Route path="/solutions" element={<Solutions />} />
             <Route path="/data-preview" element={<DataPreview />} />
             <Route path="/reports" element={<Reports />} />

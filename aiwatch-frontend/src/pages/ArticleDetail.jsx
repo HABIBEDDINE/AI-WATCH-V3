@@ -68,47 +68,60 @@ export default function ArticleDetail() {
     return () => window.removeEventListener("resize", fn);
   }, []);
 
-  // Fetch article from API if not passed via navigation state
+  // Always fetch fresh from API on mount so we pick up any cached summary
+  // that was written back by a previous /api/summarize call.
+  // We use the navstate article only as an instant initial render value.
   useEffect(() => {
-    if (!article && id) {
-      getArticle(id)
-        .then(data => { setArticle(data); })
-        .catch(() => setArticle(null))
-        .finally(() => setLoading(false));
-    }
-  }, [id, article]);
+    if (!id) return;
+    getArticle(id)
+      .then(data => {
+        // Debug: uncomment to inspect what fields the API actually returns
+        // console.log("[ArticleDetail] API article:", data);
+        // console.log("[ArticleDetail] summary field:", data?.summary);
+        // console.log("[ArticleDetail] description field:", data?.description);
+        setArticle(data);
+      })
+      .catch(() => { /* keep navstate article if fetch fails */ })
+      .finally(() => setLoading(false));
+  // Run only once on mount — id never changes within a mounted component
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Derive best summary once article is loaded; auto-generate if none found
+  // Derive best summary once article is available; auto-generate only if none found.
+  // Keyed on article?.id so mutations to article object don't re-trigger this.
   useEffect(() => {
     if (!article) return;
     const found = bestSummary(article);
+    console.log(`[ArticleDetail] FETCHING SUMMARY CHECK for ${article.id} — stored summary: "${found ? found.slice(0, 60) + "..." : "none"}"`);
     if (found) {
       setSummary(found);
-    } else {
-      // No summary stored — call AI automatically
-      setAiLoading(true);
-      setAiError(null);
-      generateSummary(article)
-        .then(result => {
-          const text = (result.summary || "").trim();
-          if (text && text.length > 20) {
-            setSummary(text);
-            setArticle(prev => ({ ...prev, summary: text, description: text }));
-          }
-        })
-        .catch(err => {
-          const msg = err.message || "";
-          if (msg.includes("404")) {
-            setAiError("Backend not ready — restart the Python server then refresh.");
-          } else if (msg.includes("503")) {
-            setAiError("No LLM key configured — check .env for OPENAI_API_KEY or ANTHROPIC_API_KEY.");
-          } else {
-            setAiError(msg || "Auto-summary failed.");
-          }
-        })
-        .finally(() => setAiLoading(false));
+      return;
     }
-  }, [article]);
+    // No usable summary in cache — call AI once
+    setAiLoading(true);
+    setAiError(null);
+    console.log(`[ArticleDetail] CALLING /api/summarize for article ${article.id}`);
+    generateSummary(article)
+      .then(result => {
+        const text = (result.summary || "").trim();
+        if (text && text.length > 20) {
+          setSummary(text);
+          setArticle(prev => prev ? { ...prev, summary: text } : prev);
+        }
+      })
+      .catch(err => {
+        const msg = err.message || "";
+        if (msg.includes("404")) {
+          setAiError("Backend not ready — restart the Python server then refresh.");
+        } else if (msg.includes("503")) {
+          setAiError("No LLM key configured — check .env for OPENAI_API_KEY or ANTHROPIC_API_KEY.");
+        } else {
+          setAiError(msg || "Auto-summary failed.");
+        }
+      })
+      .finally(() => setAiLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [article?.id]);
 
   const handleGenerateSummary = async () => {
     if (!article) return;

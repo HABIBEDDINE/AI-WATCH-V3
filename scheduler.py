@@ -7,6 +7,8 @@ Background scheduler for automated daily data ingestion and newsletter delivery.
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from ingestion import run_ingestion
+from trends_service import refresh_trends
+import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
@@ -86,8 +88,15 @@ def start():
             id="daily_newsletter",
             replace_existing=True,
         )
+        scheduler.add_job(
+            lambda: asyncio.run(refresh_trends()),
+            "interval",
+            hours=6,
+            id="trends_refresh",
+            replace_existing=True,
+        )
         scheduler.start()
-        logger.info("📅 Scheduler started — ingestion 00:00 UTC, newsletter 07:00 UTC")
+        logger.info("📅 Scheduler started — ingestion 00:00 UTC, newsletter 07:00 UTC, trends every 6h")
     except Exception as e:
         logger.error(f"Failed to start scheduler: {e}")
 

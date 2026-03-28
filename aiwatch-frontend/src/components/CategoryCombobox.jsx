@@ -12,7 +12,7 @@ const CATEGORIES = [
   "Robotics",
 ];
 
-export default function CategoryCombobox({ onSelect, selected: externalSelected }) {
+export default function CategoryCombobox({ onSelect, selected: externalSelected, dropdownAlign = "left" }) {
   const [open, setOpen]       = useState(false);
   const [selected, setSelected] = useState(externalSelected || "All Industries");
   const ref = useRef(null);
@@ -73,7 +73,7 @@ export default function CategoryCombobox({ onSelect, selected: externalSelected 
         <div style={{
           position: "absolute",
           top: "calc(100% + 6px)",
-          left: 0,
+          ...(dropdownAlign === "right" ? { right: 0 } : { left: 0 }),
           minWidth: "100%",
           background: "#fff",
           border: "1.5px solid #e2e0ea",

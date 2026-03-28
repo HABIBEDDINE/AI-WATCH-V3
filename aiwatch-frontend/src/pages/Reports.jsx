@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getReports, getReport, deleteReport, getArticles, saveReport } from "../services/api";
 import { generatePDF } from "../utils/generatePDF";
+import CategoryCombobox from "../components/CategoryCombobox";
 
 const ACCENT    = "#6B2C94";
 const ACCENT_BG = "#f5eefb";
@@ -38,8 +39,6 @@ function GenerateReportModal({ onClose, onSaved }) {
   const [selected,  setSelected]  = useState(new Set());
   const [search,    setSearch]    = useState("");
   const [topic,     setTopic]     = useState("All");
-
-  const TOPICS = ["All", "AI", "Fintech", "HealthTech", "Cybersecurity", "CleanTech", "Robotics"];
 
   const fetchArticles = useCallback(async () => {
     setLoading(true);
@@ -143,31 +142,22 @@ function GenerateReportModal({ onClose, onSaved }) {
 
         {/* Filters */}
         <div style={{ padding: "14px 24px", borderBottom: `1px solid ${B.gray200}`, flexShrink: 0 }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <input
               type="text"
               placeholder="Search articles..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{
-                flex: 1, padding: "8px 12px", border: `1px solid ${B.gray200}`,
+                flex: 1, minWidth: 140, padding: "8px 12px", border: `1px solid ${B.gray200}`,
                 borderRadius: 6, fontSize: 13, outline: "none",
               }}
             />
-            <div className="filter-chips">
-              {TOPICS.map(t => (
-                <button key={t} onClick={() => setTopic(t)} style={{
-                  flexShrink: 0, padding: "6px 12px", borderRadius: 999,
-                  border: topic === t ? `1.5px solid ${ACCENT}` : `1px solid ${B.gray200}`,
-                  background: topic === t ? ACCENT_BG : "transparent",
-                  color: topic === t ? ACCENT : B.gray600,
-                  fontSize: 11, fontWeight: topic === t ? 700 : 400, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}>
-                  {t}
-                </button>
-              ))}
-            </div>
+            <CategoryCombobox
+              dropdownAlign="right"
+              selected={topic === "All" ? "All Industries" : topic}
+              onSelect={(cat) => setTopic(cat === "All Industries" ? "All" : cat)}
+            />
           </div>
         </div>
 

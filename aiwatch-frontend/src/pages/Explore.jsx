@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { getArticles, triggerIngest, saveReport } from "../services/api";
 import { generatePDF } from "../utils/generatePDF";
-import { Search } from "lucide-react";
+import { Search, LayoutGrid, List } from "lucide-react";
 import { cleanText } from "../utils/cleanText";
+import CategoryCombobox from "../components/CategoryCombobox";
 
 const ACCENT   = "#6B2C94";
 const ACCENT_BG = "#f5eefb";
@@ -27,7 +29,6 @@ const B = {
   blue:      "#1a5fa8",
 };
 
-const TOPICS  = ["All Industries", "AI", "Fintech", "HealthTech", "Cybersecurity", "CleanTech", "Robotics"];
 const SIGNALS = ["All", "Strong", "Weak"];
 
 function StatCard({ label, value }) {
@@ -44,21 +45,24 @@ function StatCard({ label, value }) {
   );
 }
 
-function ArticleCard({ article }) {
+function ArticleCard({ article, onOpen }) {
   const isStrong = article.signal_strength === "Strong";
   const title    = cleanText(article.title);
-  const rawSum   = cleanText(article.summary || "");
-  const summary  = !rawSum || rawSum === title ? "Summary not available." : rawSum;
+  // Debug: log once per card render to confirm field values
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[ArticleCard] id=${article.id} | summary="${String(article.summary).slice(0,60)}" | description="${String(article.description).slice(0,60)}"`);
+  }
+  const rawSum   = cleanText(article.summary || article.description || "")
+    .replace(/^[-•]\s*/gm, "").replace(/\n+/g, " ").trim();
+  const summary  = rawSum && rawSum !== title && rawSum.length > 20 ? rawSum : null;
   const industry = article.topic || article.search_topic || article.industry || "General";
   const date     = article.published_at
     ? new Date(article.published_at).toLocaleDateString()
     : "";
-  const url = article.url || article.link
-    || `https://www.google.com/search?q=${encodeURIComponent(article.title)}`;
 
   return (
     <div
-      onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+      onClick={() => onOpen(article)}
       onMouseEnter={e => {
         e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
         e.currentTarget.style.borderColor = B.gray300;
@@ -100,15 +104,16 @@ function ArticleCard({ article }) {
       {/* Summary */}
       <div style={{
         fontSize: 15,
-        color: B.gray500,
+        color: summary ? B.gray500 : B.gray300,
         lineHeight: 1.65,
         marginBottom: 14,
         display: "-webkit-box",
         WebkitLineClamp: 3,
         WebkitBoxOrient: "vertical",
         overflow: "hidden",
+        fontStyle: summary ? "normal" : "italic",
       }}>
-        {summary}
+        {summary || "No summary — click to read full article."}
       </div>
 
       {/* Metadata footer */}
@@ -120,6 +125,7 @@ function ArticleCard({ article }) {
 }
 
 export default function Explore() {
+  const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   useEffect(() => {
     const fn = () => setIsMobile(window.innerWidth < 768);
@@ -136,6 +142,7 @@ export default function Explore() {
   const [currentPage, setCurrentPage]       = useState(1);
   const [itemsPerPage, setItemsPerPage]     = useState(10);
   const [totalCount, setTotalCount]         = useState(0);
+  const [viewMode, setViewMode]               = useState("list"); // "list" | "grid"
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedArticles, setSelectedArticles] = useState(new Set());
   const [reportFormat, setReportFormat]     = useState("md");
@@ -321,54 +328,21 @@ export default function Explore() {
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* ── PAGE HEADER ── */}
-      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 10 : 16, marginBottom: 20 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: B.gray900, letterSpacing: -0.3, margin: 0 }}>
           Explore Intelligence
         </h1>
-        <button
-          onClick={handleIngest}
-          disabled={loading}
-          onMouseEnter={e => { e.currentTarget.style.background = ACCENT_BG; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-          style={{
-            display: "flex", alignItems: "center", gap: 7,
-            background: "transparent",
-            color: ACCENT,
-            border: `1.5px solid ${ACCENT}`,
-            padding: "7px 16px",
-            borderRadius: 6,
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.7 : 1,
-            transition: "background 0.15s",
-          }}
-        >
-          {loading && (
-            <span style={{
-              width: 11, height: 11,
-              border: `2px solid ${ACCENT}40`,
-              borderTop: `2px solid ${ACCENT}`,
-              borderRadius: "50%",
-              display: "inline-block",
-              animation: "spin 0.8s linear infinite",
-              flexShrink: 0,
-            }} />
-          )}
-          {loading ? "Refreshing..." : "Refresh Intelligence"}
-        </button>
       </div>
 
       {/* ── KPI STRIP (3 cards) ── */}
-      <div className="grid-4col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+      <div className="stats-grid" style={{ marginBottom: 20 }}>
         <StatCard label="Articles Today"  value={totalCount} />
         <StatCard label="Strong Signals"  value={strongCount} />
         <StatCard label="Avg Relevance"   value={articles.length ? `${avgRelevance}/10` : "—"} />
       </div>
 
-      {/* ── MERGED TOOLBAR: search left, topic chips right ── */}
-      <div className="stack-mobile" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 }}>
-        {/* Search */}
+      {/* ── TOOLBAR: search + category combobox + view toggle ── */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
         <div className="full-mobile" style={{ position: "relative", flexShrink: 0, width: 260 }}>
           <Search
             size={14}
@@ -394,33 +368,32 @@ export default function Explore() {
             }}
           />
         </div>
-
-        {/* Topic filter chips — wrap on mobile, scroll on desktop */}
-        <div className="filter-chips" style={{ flex: 1, minWidth: 0, paddingBottom: 2 }}>
-          {TOPICS.map(topic => {
-            const active = selectedTopic === topic;
-            return (
-              <button
-                key={topic}
-                onClick={() => setSelectedTopic(topic)}
-                style={{
-                  flexShrink: 0,
-                  padding: "6px 14px",
-                  border: active ? `1.5px solid ${ACCENT}` : `1px solid ${B.gray200}`,
-                  background: active ? ACCENT_BG : "transparent",
-                  color: active ? ACCENT : B.gray600,
-                  fontSize: 12,
-                  fontWeight: active ? 700 : 400,
-                  cursor: "pointer",
-                  borderRadius: 999,
-                  transition: "all 0.15s",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {topic}
-              </button>
-            );
-          })}
+        <CategoryCombobox
+          selected={selectedTopic}
+          onSelect={(cat) => { setSelectedTopic(cat); setCurrentPage(1); }}
+        />
+        {/* Grid / List toggle */}
+        <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+          {[
+            { mode: "list", Icon: List,        title: "List view" },
+            { mode: "grid", Icon: LayoutGrid,  title: "Grid view" },
+          ].map(({ mode, Icon, title }) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              title={title}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: 34, height: 34, borderRadius: 6, border: `1.5px solid`,
+                borderColor: viewMode === mode ? ACCENT : B.gray200,
+                background:  viewMode === mode ? ACCENT_BG : B.white,
+                color:       viewMode === mode ? ACCENT : B.gray400,
+                cursor: "pointer", transition: "all 0.15s",
+              }}
+            >
+              <Icon size={15} strokeWidth={2} />
+            </button>
+          ))}
         </div>
       </div>
 
@@ -493,13 +466,39 @@ export default function Explore() {
         </div>
       )}
 
-      {/* ── ARTICLE LIST (single column) ── */}
+      {/* ── ARTICLE LIST / GRID ── */}
       {!loading && articles.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
-          {articles.map(article => (
-            <ArticleCard key={article.id} article={article} />
-          ))}
-        </div>
+        <>
+          <style>{`
+            .articles-grid {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 16px;
+              margin-bottom: 24px;
+            }
+            @media (max-width: 1024px) {
+              .articles-grid { grid-template-columns: repeat(2, 1fr); }
+            }
+            @media (max-width: 640px) {
+              .articles-grid { grid-template-columns: 1fr; }
+            }
+            .articles-list {
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+              margin-bottom: 24px;
+            }
+          `}</style>
+          <div className={viewMode === "grid" ? "articles-grid" : "articles-list"}>
+            {articles.map(article => (
+              <ArticleCard
+                key={article.id}
+                article={article}
+                onOpen={(a) => navigate(`/article/${a.id}`, { state: { article: a } })}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {/* ── PAGINATION ── */}
@@ -575,6 +574,53 @@ export default function Explore() {
           </div>
         </div>
       )}
+
+      {/* ── FLOATING REFRESH BUTTON (FAB) ── */}
+      <button
+        onClick={handleIngest}
+        disabled={loading}
+        title="Refresh Intelligence"
+        style={{
+          position: "fixed",
+          bottom: 28,
+          right: 28,
+          zIndex: 200,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: loading ? "14px 20px" : "14px 22px",
+          borderRadius: 999,
+          border: "none",
+          background: loading ? ACCENT_BG : ACCENT,
+          color: loading ? ACCENT : "#fff",
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: loading ? "not-allowed" : "pointer",
+          boxShadow: "0 4px 20px rgba(107,44,148,0.35)",
+          transition: "background 0.15s, box-shadow 0.15s",
+          letterSpacing: 0.2,
+        }}
+        onMouseEnter={e => { if (!loading) e.currentTarget.style.boxShadow = "0 6px 28px rgba(107,44,148,0.5)"; }}
+        onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 4px 20px rgba(107,44,148,0.35)"; }}
+      >
+        {loading ? (
+          <span style={{
+            width: 14, height: 14,
+            border: `2px solid ${ACCENT}40`,
+            borderTop: `2px solid ${ACCENT}`,
+            borderRadius: "50%",
+            display: "inline-block",
+            animation: "spin 0.8s linear infinite",
+            flexShrink: 0,
+          }} />
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        )}
+        {loading ? "Refreshing..." : "Refresh Intelligence"}
+      </button>
 
       {/* ── REPORT MODAL ── */}
       {showReportModal && (

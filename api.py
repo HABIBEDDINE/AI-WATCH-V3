@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Query, BackgroundTasks, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -13,6 +16,7 @@ from summarizer import summarize_articles
 from main import PRESET_SECTORS
 import newsletter as newsletter_module
 import scheduler
+from trends_service import refresh_trends, get_cached_trends, TREND_QUERIES
 
 app = FastAPI(title="AI Watch API")
 
@@ -290,24 +294,169 @@ def get_radar(persona: str = Query("cto"), max_articles: int = 8):
     return {"products": products}
 
 
-@app.get("/api/trends")
-def get_trends(persona: str = Query("cto"), max_articles: int = 12):
-    """Get trend chart and top topic data for the persona."""
-    summarized = get_summarized_articles(persona=persona, max_articles=max_articles, days_back=7)
-    series = get_trend_series(summarized)
-    top_topics = get_top_topics(summarized)
-    latest = series[-1] if series else 0
-    baseline = max(1, sum(series[:-1]) / max(1, len(series) - 1))
-    delta_pct = int(((latest - baseline) / baseline) * 100)
+_saved_trends: list = []
 
-    return {
-        "series": series,
-        "latest": latest,
-        "delta": f"{delta_pct:+d}%",
-        "top_topics": top_topics,
-        "topics_count": len(top_topics),
-        "articles_analyzed": len(summarized),
+
+@app.get("/api/trends/top")
+def get_top_trends():
+    trends, _ = get_cached_trends()
+    return {"trends": trends[:3]}
+
+
+@app.get("/api/trends/saved")
+def get_saved_trends():
+    return {"trends": _saved_trends}
+
+
+@app.get("/api/trends")
+def get_trends(category: str = Query(None)):
+    trends, last_updated = get_cached_trends()
+    if category:
+        trends = [t for t in trends if t.get("category") == category]
+    categories = [{"id": q["category"], "label": q["label"], "icon": q["icon"]} for q in TREND_QUERIES]
+    return {"trends": trends, "total": len(trends), "last_updated": last_updated, "categories": categories}
+
+
+@app.post("/api/trends/refresh")
+async def trigger_trends_refresh():
+    trends = await refresh_trends()
+    return {"trends": trends, "total": len(trends), "message": f"Refreshed {len(trends)} trends"}
+
+
+@app.post("/api/trends/{trend_id}/deepdive")
+async def get_trend_deepdive(trend_id: str):
+    import os as _os, asyncio as _asyncio
+    trends, _ = get_cached_trends()
+    trend = next((t for t in trends if t.get("id") == trend_id), None)
+    if not trend:
+        raise HTTPException(status_code=404, detail="Trend not found")
+    if trend.get("deep_dive"):
+        return trend
+
+    api_key = _os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="No OPENAI_API_KEY configured")
+
+    from openai import OpenAI as _OpenAI
+    client = _OpenAI(api_key=api_key)
+    prompt = (
+        f"You are a strategic enterprise technology analyst.\n"
+        f"Topic: {trend['topic']}\nSummary: {trend.get('summary','')}\n\n"
+        f"Write a deep-dive analysis with three clearly labelled sections:\n"
+        f"1. What It Is\n2. Enterprise Impact\n3. Action Plan\n"
+        f"Each section: 2-3 sentences. Write as a senior analyst briefing a CTO."
+    )
+    # Run synchronous OpenAI call in a thread so it doesn't block the event loop
+    resp = await _asyncio.to_thread(
+        client.chat.completions.create,
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=400,
+    )
+    trend["deep_dive"] = resp.choices[0].message.content.strip()
+    return trend
+
+
+@app.post("/api/trends/{trend_id}/save")
+def save_trend(trend_id: str):
+    global _saved_trends
+    trends, _ = get_cached_trends()
+    trend = next((t for t in trends if t.get("id") == trend_id), None)
+    if not trend:
+        raise HTTPException(status_code=404, detail="Trend not found")
+    if not any(t.get("id") == trend_id for t in _saved_trends):
+        trend["saved"] = True
+        _saved_trends.append(trend)
+    return {"saved": True}
+
+
+@app.delete("/api/trends/{trend_id}/save")
+def unsave_trend(trend_id: str):
+    global _saved_trends
+    _saved_trends = [t for t in _saved_trends if t.get("id") != trend_id]
+    trends, _ = get_cached_trends()
+    for t in trends:
+        if t.get("id") == trend_id:
+            t["saved"] = False
+    return {"saved": False}
+
+
+@app.get("/test-perplexity")
+async def test_perplexity():
+    """Debug endpoint — calls Perplexity directly and returns the raw response."""
+    import os as _os, httpx as _httpx, json as _json
+
+    api_key = _os.getenv("PERPLEXITY_API_KEY")
+    if not api_key:
+        return {
+            "ok": False,
+            "error": "PERPLEXITY_API_KEY is not set in environment",
+            "env_keys_present": [k for k in _os.environ if "PERPLEXITY" in k.upper()],
+        }
+
+    key_preview = api_key[:8] + "..." + api_key[-4:]
+    payload = {
+        "model": "sonar-pro",
+        "messages": [{"role": "user", "content": "What are the top 3 AI trends right now? One sentence each."}],
+        "max_tokens": 200,
     }
+
+    try:
+        async with _httpx.AsyncClient(verify=False, timeout=20) as client:
+            resp = await client.post(
+                "https://api.perplexity.ai/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+
+        raw_text = resp.text
+        status = resp.status_code
+
+        if status != 200:
+            return {
+                "ok": False,
+                "http_status": status,
+                "key_preview": key_preview,
+                "model": payload["model"],
+                "raw_response": raw_text[:1000],
+            }
+
+        try:
+            data = _json.loads(raw_text)
+        except Exception as je:
+            return {
+                "ok": False,
+                "http_status": status,
+                "error": f"JSON decode failed: {je}",
+                "raw_response": raw_text[:500],
+            }
+
+        if "choices" not in data:
+            return {
+                "ok": False,
+                "http_status": status,
+                "error": "'choices' key missing in response",
+                "keys_present": list(data.keys()),
+                "raw_response": raw_text[:800],
+            }
+
+        content = data["choices"][0]["message"]["content"]
+        return {
+            "ok": True,
+            "http_status": status,
+            "key_preview": key_preview,
+            "model": payload["model"],
+            "content": content,
+            "usage": data.get("usage"),
+        }
+
+    except _httpx.TimeoutException:
+        return {"ok": False, "error": "Request timed out (20s)", "key_preview": key_preview}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "key_preview": key_preview}
 
 
 @app.get("/api/journey")
@@ -421,6 +570,81 @@ def get_article_detail(article_id: str):
             return article
     
     return {"error": "Article not found"}, 404
+
+
+@app.post("/api/summarize")
+async def summarize_article_endpoint(article: dict):
+    """Generate an AI summary for any article (stateless — OpenAI → Anthropic fallback)."""
+    import os as _os, asyncio as _asyncio
+    title       = article.get("title", "")
+    # Never feed the stored summary as input — it may already be in the wrong
+    # language and will bias the model to respond in that language.
+    description = article.get("description", "") or ""
+    content     = article.get("content", "")
+    text        = f"Title: {title}\n\n{description}\n\n{content}"[:4000]
+
+    system_msg = (
+        "You are a strategic AI analyst. "
+        "You ALWAYS respond in English only, no matter what language the article is written in."
+    )
+    prompt = (
+        "Summarise the following article in 3–4 sentences.\n"
+        "Structure: WHAT happened, WHY it matters strategically, WHO is affected, WHAT to watch next.\n"
+        "Write in plain English prose — no bullet points, no French, no other language.\n\n"
+        f"{text}"
+    )
+
+    generated_summary = None
+
+    openai_key = _os.getenv("OPENAI_API_KEY")
+    if openai_key:
+        try:
+            from openai import OpenAI as _OpenAI
+            client = _OpenAI(api_key=openai_key)
+            # Run in thread — synchronous SDK must not block the event loop
+            resp = await _asyncio.to_thread(
+                client.chat.completions.create,
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user",   "content": prompt},
+                ],
+                max_tokens=300,
+            )
+            generated_summary = resp.choices[0].message.content.strip()
+        except Exception:
+            pass
+
+    if not generated_summary:
+        anthropic_key = _os.getenv("ANTHROPIC_API_KEY")
+        if anthropic_key:
+            try:
+                import anthropic as _anthropic
+                client = _anthropic.Anthropic(api_key=anthropic_key)
+                resp = await _asyncio.to_thread(
+                    client.messages.create,
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=300,
+                    system=system_msg,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                generated_summary = resp.content[0].text.strip()
+            except Exception:
+                pass
+
+    if not generated_summary:
+        raise HTTPException(status_code=503, detail="No LLM key configured. Add OPENAI_API_KEY or ANTHROPIC_API_KEY to .env")
+
+    # Persist the generated summary back into the in-memory cache so the
+    # same article is never re-summarised on the next page visit.
+    article_id = article.get("id")
+    if article_id:
+        for cached in _articles_cache:
+            if cached.get("id") == article_id:
+                cached["summary"] = generated_summary
+                break
+
+    return {"summary": generated_summary}
 
 
 @app.get("/api/signals/live")

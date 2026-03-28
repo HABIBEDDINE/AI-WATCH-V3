@@ -6,18 +6,19 @@
 
 **Built for**: CTOs, Innovation Managers, Strategy Directors
 
-**Branch**: ABDO
+**Branch**: ABDO → main
 
 ---
 
 ## What's New in V3
 
 ### Backend
-- **Multi-LLM fallback chain** — OpenAI GPT-4o-mini → Anthropic Claude Haiku. If OpenAI fails or is not configured, Anthropic is used automatically. Both work through corporate SSL proxies (`httpx verify=False`)
-- **Strategic AI prompts** — Summaries now follow a structured 4-point format: WHAT happened, WHY it matters strategically, WHO is affected, WHAT to watch next
+- **Multi-LLM fallback chain** — OpenAI GPT-4o-mini (primary) → OpenAI backup key → Anthropic Claude Haiku. If the primary key fails or hits quota, the backup key is tried automatically before falling to Anthropic
+- **Dual OpenAI key support** — `OPENAI_API_KEY` + `OPENAI_API_KEY_BACKUP` both loaded via `_openai_keys()` helper; both endpoints (`/api/summarize`, `/api/match-solutions`) iterate through all available keys
+- **Strategic AI prompts** — Summaries follow a structured 4-point format: WHAT happened, WHY it matters strategically, WHO is affected, WHAT to watch next
+- **`POST /api/match-solutions`** — Given any article or trend, returns top 3 most relevant DXC solutions with a one-sentence explanation per match. Results cached in memory (no repeat LLM calls on re-click). All 15 DXC solutions hardcoded in prompt
 - **Stateless `/api/summarize` endpoint** — Frontend sends article data directly; no cache lookup required
 - **Auto-startup ingestion** — Server pre-populates article cache on startup via background thread
-- **Hot reload** — `uvicorn` runs with `reload=True`; code changes are picked up without manual restart
 - **Keyword extraction** — Every ingested article gets up to 6 SEO-style keywords extracted from title + description
 - **Source API tracking** — Each article records which data source it came from (Perplexity, NewsAPI, NewsData, Google News)
 - **Mock data removed** — All hardcoded fake articles, fallback feeds, and placeholder products deleted
@@ -25,30 +26,35 @@
 - **`/api/debug/sources` endpoint** — Returns article counts broken down by source API
 
 ### Frontend — Explore Page
-- **Article Detail page** (`/article/:id`) — Full detail view with signal badge, industry tag, source badge, Summary section, Key Info table, Key Actors, Funding, and Read Full Article button
+- **Article Detail page** (`/article/:id`) — Full detail view with signal badge, industry tag, source badge, Summary section, Key Info table, Key Actors, Funding, Match DXC Solutions, and Read Full Article button
+- **Match DXC Solutions button** — Below Key Info table; click-only (never auto-triggers); displays top 3 matched DXC solutions inline with explanations; result cached per session
 - **Summary auto-generation** — ArticleDetail auto-calls `/api/summarize` on load when no summary exists
-- **Keywords row** — Key Info table shows extracted keyword pills in purple
-- **Refresh Intelligence** — Appends the next page of articles to the existing list (sorted newest-first)
-- **Category combobox** — Industry filter is now a dropdown combobox replacing the overflow chip buttons
-- **Grid / List toggle** — Switch between single-column list and two-column grid layouts
-- **Empty state auto-ingest** — If the cache is empty on load, ingestion triggers automatically (once per session)
+- **Keywords row** — Key Info table shows extracted keyword pills
+- **Refresh Intelligence** — Floating FAB button fixed bottom-right; appends fresh articles without losing the current list
+- **Category combobox** — Industry filter is now a dropdown combobox
+- **Grid / List toggle** — Switch between single-column list and three-column grid layouts
+
+### Frontend — AI Trends Page
+- **Live trend intelligence** — Perplexity `sonar-pro` across 6 categories: LLM Models, Dev & Coding AI, AI Agents, Open Source AI, AI Infrastructure, Enterprise AI Apps
+- **Match Solutions button** — On each top trend card; click-only; displays top 3 DXC solution matches inline on that card only; other cards unaffected
+- **Deep Dive modal** — Full strategic analysis per trend with What It Is / Enterprise Impact / Action Plan sections
+- **Watchlist** — Save/unsave trends; watchlist persists across category tabs
+- **Client-side category filtering** — All trends fetched once; tabs filter locally with no server round-trip
+- **Auto-refresh** — Background scheduler refreshes trends every 6 hours
 
 ### Frontend — Reports Page
-- **Professional PDF design** — Purple header banner, meta grid, executive summary, key findings pills, table of contents, per-article category colour bar, keywords pills, clickable "Read Full Article" links, purple page-number footers
-- **Shared PDF utility** — `src/utils/generatePDF.js` — single source of truth used by both the Reports page and the Explore page download button
-- **Daily Brief modal** — Clean white minimal design with stats cards, topic pills, article list with left-border signal indicator, and footer action buttons
-- **STRONG/WEAK signal** appended inline on the article meta line (source | date | Relevance | STRONG)
-- **Title overflow fix** — Font set to 10.5pt before `splitTextToSize` so wrapping is calculated at the correct character width (154mm max)
+- **Professional PDF design** — Branded header banner, meta grid, executive summary, key findings pills, table of contents, per-article category colour bar, keywords pills, clickable "Read Full Article" links, page-number footers
+- **Shared PDF utility** — `src/utils/generatePDF.js` — single source of truth used by both Reports page and Explore download button
+- **Daily Brief modal** — Clean white minimal design with stats cards, topic pills, article list with left-border signal indicator
 
 ### Frontend — Data Preview Page
 - **Real funding data** — Funding Rounds table fetches from `/api/funding`
 - **Real actors data** — News Sources table fetches from `/api/actors`
 - **Empty states** — Both tables show a descriptive message when no data is available yet
 
-### Mobile / Responsive
-- Sidebar collapses to a drawer on mobile (≤768px) with hamburger toggle and backdrop overlay
-- Sidebar padding set to `0` so nav items start flush at the top
-- CSS utility classes: `grid-2col`, `grid-4col`, `stack-mobile`, `hide-mobile`, `full-mobile`, `pad-mobile`, `filter-chips`, `pagination-bar`
+### Brand & Design
+- **Color rebrand** — Primary brand color `#1A4A9E` (deep navy blue), secondary `#C45F00` (burnt orange); applied across all pages and components
+- **Mobile-responsive sidebar** — Collapses to a drawer on mobile (≤768px) with hamburger toggle and backdrop overlay
 
 ---
 
@@ -69,6 +75,7 @@ ai-watch-V3/
 ├── api.py                    # FastAPI app — all REST endpoints
 ├── ingestion.py              # Multi-source news fetching + keyword extraction
 ├── summarizer.py             # LLM summarization (OpenAI → Anthropic fallback)
+├── trends_service.py         # Perplexity trend fetching + GPT clustering
 ├── report_generator.py       # Markdown + PDF report generation
 ├── newsletter.py             # HTML email digest generation
 ├── powerbi_export.py         # CSV/JSON exports for Power BI
@@ -80,16 +87,17 @@ ai-watch-V3/
 └── aiwatch-frontend/
     └── src/
         ├── pages/
-        │   ├── Explore.jsx         # News feed — filter, search, paginate, navigate
-        │   ├── ArticleDetail.jsx   # Full article view with AI summary
-        │   ├── DataPreview.jsx     # Charts, data table, funding & actors
-        │   ├── Reports.jsx         # Saved reports with PDF export
-        │   ├── Solutions.jsx       # DXC solution catalog
+        │   ├── Explore.jsx         # News feed — filter, search, paginate, grid/list toggle
+        │   ├── ArticleDetail.jsx   # Full article view with AI summary + DXC solution match
+        │   ├── Trends.jsx          # AI trend intelligence with Deep Dive + solution match
+        │   ├── DataPreview.jsx     # Charts, stats, funding rounds, news sources
+        │   ├── Reports.jsx         # Saved reports with PDF/Markdown export
+        │   ├── Solutions.jsx       # DXC solution catalog with fit scoring
         │   ├── Matching.jsx        # AI readiness quiz + solution matching
-        │   ├── Newsletter.jsx      # Weekly digest viewer
-        │   └── Trends.jsx          # Market trend charts
+        │   └── Newsletter.jsx      # Weekly digest with SMTP delivery
         ├── components/
-        │   └── CategoryCombobox.jsx  # Reusable industry filter dropdown
+        │   ├── CategoryCombobox.jsx  # Reusable industry filter dropdown
+        │   └── RightPanel.jsx        # Sidebar right panel
         ├── utils/
         │   └── generatePDF.js      # Shared professional PDF builder (jsPDF)
         └── services/
@@ -105,6 +113,7 @@ Copy `.env.example` to `.env` and fill in your keys:
 ```env
 # Required (at least one LLM key)
 OPENAI_API_KEY=sk-...
+OPENAI_API_KEY_BACKUP=sk-...     # Optional second OpenAI key — tried if primary fails
 ANTHROPIC_API_KEY=sk-ant-...
 
 # News sources (at least one recommended)
@@ -123,7 +132,7 @@ SMTP_FROM_EMAIL=your@gmail.com
 NEWSLETTER_RECIPIENTS=recipient@example.com
 ```
 
-The system works with any combination — if OpenAI is missing, Anthropic handles all summarization. If a news API key is missing, the other sources fill in. Without `PERPLEXITY_API_KEY` the Trends page will not load data. Without SMTP vars the newsletter is saved as an HTML file in `/reports/`.
+The system works with any combination — if the primary OpenAI key hits quota, the backup is tried automatically. If both OpenAI keys fail, Anthropic handles all LLM calls. If a news API key is missing, the other sources fill in. Without `PERPLEXITY_API_KEY` the Trends page will not load data. Without SMTP vars the newsletter is saved as an HTML file in `/reports/`.
 
 ---
 
@@ -163,6 +172,7 @@ npm start
 | GET | `/api/articles` | Paginated article list with filters |
 | GET | `/api/articles/{id}` | Single article by ID |
 | POST | `/api/summarize` | Generate AI summary for any article (English-only, caches result) |
+| POST | `/api/match-solutions` | Match article/trend to top 3 DXC solutions with explanations (cached) |
 | POST | `/api/ingest` | Trigger fresh news ingestion |
 | GET | `/api/trends` | Get cached trends (all or filtered by category) |
 | POST | `/api/trends/refresh` | Fetch fresh trends from Perplexity + re-cluster with GPT |
@@ -204,8 +214,8 @@ npm start
 | Page | Route | Description |
 |------|-------|-------------|
 | **Explore** | `/explore` | Browse articles, filter by industry, search, grid/list toggle, floating FAB |
-| **Article Detail** | `/article/:id` | Full article with English AI summary (cached), key actors, funding |
-| **AI Trends** | `/trends` | Live Perplexity trend intelligence, Deep Dive, watchlist, category tabs |
+| **Article Detail** | `/article/:id` | Full article with AI summary, key actors, funding, DXC solution match |
+| **AI Trends** | `/trends` | Live Perplexity trend intelligence, Deep Dive, watchlist, solution match per card |
 | **Data Preview** | `/data` | Charts, stats, data table, funding rounds, news sources |
 | **Reports** | `/reports` | Saved intelligence reports with PDF/Markdown download |
 | **Solutions** | `/solutions` | DXC solution catalog with fit scoring |
@@ -231,34 +241,30 @@ npm start
 
 ### V3 — MVP+ (current — branch: ABDO / main)
 - Multi-source ingestion (4 APIs in parallel)
-- OpenAI → Anthropic fallback chain
+- OpenAI → backup OpenAI → Anthropic fallback chain
 - Strategic AI prompts (WHAT / WHY / WHO / WHAT NEXT)
 - Article Detail page with full context
 - Keyword extraction per article
 - Category combobox filter
-- Append-on-refresh (load more without losing current articles)
+- Floating Refresh FAB — always visible while scrolling
+- Grid / List view toggle (3-col desktop → 2-col tablet → 1-col mobile)
 - Mock data fully removed — 100% real API data
-- Hot reload server
 - Shared PDF utility (`generatePDF.js`) — one design, used everywhere
-- Professional PDF: purple header, meta grid, TOC, category colour bars, keyword pills, clickable links
+- Professional PDF: branded header, meta grid, TOC, category colour bars, keyword pills, clickable links
 - Mobile-responsive sidebar drawer with hamburger toggle
-- Daily Brief modal redesigned (white minimal, stats cards, signal left-border)
+- **Match DXC Solutions** — click-to-match on Article Detail and Trends cards; top 3 solutions with AI explanations; cached per session
+- **Brand rebrand** — deep navy `#1A4A9E` primary, burnt orange `#C45F00` secondary
 
 #### Latest updates (March 2026)
-- **AI Trends page** (`/trends`) — live trend intelligence via Perplexity `sonar-pro` across 6 categories (LLM Models, Dev & Coding AI, AI Agents, Open Source AI, AI Infrastructure, Enterprise AI Apps). Strategic scoring, momentum indicators, Deep Dive modal, watchlist save/unsave
-- **Trends client-side filtering** — all trends fetched once; category tabs filter locally with no server round-trip. LLM category values normalized to snake_case IDs after parsing
-- **Trends auto-refresh** — background scheduler refreshes trends every 6 hours
-- **`/test-perplexity` debug endpoint** — hits Perplexity directly and returns raw response, HTTP status, key preview and error details
-- **Summary language enforcement** — `system` message role added to both OpenAI and Anthropic calls forcing English-only output regardless of article source language. French input context removed from summarize prompt
+- **`POST /api/match-solutions`** — LLM matches any article or trend to top 3 DXC solutions from the 15-solution catalog; results cached in memory so repeat clicks cost zero API credits
+- **Dual OpenAI key fallback** — `OPENAI_API_KEY_BACKUP` env var; `_openai_keys()` helper loops through all configured keys before falling to Anthropic
+- **Color rebrand** — all pages updated from legacy purple/green to `#1A4A9E` / `#C45F00`
+- **Perplexity key updated** — new active key configured; Trends page live
+- **AI Trends page** — live intelligence via Perplexity `sonar-pro` across 6 categories; Deep Dive modal; watchlist; client-side category filtering
+- **Summary language enforcement** — `system` message role forces English-only output regardless of article source language
 - **Summary caching** — generated summaries written back to `_articles_cache`; same article never re-summarised on repeat visits
-- **ArticleDetail fetch fix** — page always fetches fresh from `GET /api/articles/{id}` on mount to pick up cached summaries; navstate used only for instant initial render
-- **`load_dotenv()` in `api.py`** — fixes silent env key failure: `.env` file was present but keys were never loaded into the process, causing all Perplexity and OpenAI calls to return `None`
-- **`asyncio.to_thread()`** — all synchronous OpenAI/Anthropic SDK calls wrapped to prevent blocking the uvicorn event loop (was causing intermittent "API DOWN" in navbar during LLM calls)
-- **Health check debounce** — frontend flips to "API DOWN" only after 2 consecutive failures, eliminating false positives
-- **Explore grid/list toggle** — `LayoutGrid` / `List` icon buttons at top-right of toolbar; grid is 3-col desktop → 2-col tablet → 1-col mobile
-- **Floating Refresh button (FAB)** — `position: fixed; bottom: 28px; right: 28px` pill button, always visible while scrolling, replaces header button
-- **SMTP newsletter delivery** — `SMTP_HOST/PORT/USERNAME/PASSWORD/FROM_EMAIL/NEWSLETTER_RECIPIENTS` env vars wired; Gmail App Password supported. Status visible at `/api/newsletter/status`
-- **Verbose trend logging** — every step in `trends_service.py` prints to terminal: key preview, HTTP status, raw response, category normalization mapping, clustering output
+- **`asyncio.to_thread()`** — all synchronous OpenAI/Anthropic SDK calls wrapped to prevent blocking the uvicorn event loop
+- **Health check debounce** — frontend flips to "API DOWN" only after 2 consecutive failures
 
 ### V4 — Planned
 - Competitive radar (interactive map of market players)
@@ -271,4 +277,4 @@ npm start
 
 ---
 
-**Version**: 3.1.0 | **Branch**: ABDO → main | **Status**: Active Development | **Last Updated**: March 28, 2026
+**Version**: 3.2.0 | **Branch**: ABDO → main | **Status**: Active Development | **Last Updated**: March 28, 2026

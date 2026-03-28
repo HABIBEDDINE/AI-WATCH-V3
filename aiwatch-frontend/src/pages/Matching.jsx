@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { saveMatchingResult } from "../services/api";
 
 const B = {
   purple:      "#1A4A9E",
@@ -1720,17 +1721,44 @@ function Results({ answers, matches, onRestart }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+// ─── localStorage key ────────────────────────────────────────────────────────
+const STORAGE_KEY = "aiwatch_matching_state";
+
+function loadSavedState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return null;
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function Matching() {
-  const [stepIndex, setStepIndex] = useState(0);
-  const [answers, setAnswers] = useState({});
-  const [phase, setPhase] = useState("questions"); // questions | analyzing | results
-  const [matches, setMatches] = useState(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  // Restore from localStorage on first render
+  const saved = useRef(loadSavedState()).current;
+
+  const [stepIndex, setStepIndex] = useState(saved?.stepIndex ?? 0);
+  const [answers,   setAnswers]   = useState(saved?.answers   ?? {});
+  const [phase,     setPhase]     = useState(saved?.phase     ?? "questions");
+  const [matches,   setMatches]   = useState(saved?.matches   ?? null);
+  const [isMobile,  setIsMobile]  = useState(window.innerWidth < 768);
+
+  // Resize listener
   useEffect(() => {
     const fn = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", fn);
     return () => window.removeEventListener("resize", fn);
   }, []);
+
+  // Persist quiz state to localStorage on every relevant change
+  useEffect(() => {
+    if (phase === "questions" && stepIndex === 0 && Object.keys(answers).length === 0) {
+      // Blank state — nothing to persist
+      localStorage.removeItem(STORAGE_KEY);
+    } else {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ stepIndex, answers, phase, matches }));
+    }
+  }, [stepIndex, answers, phase, matches]);
 
   function handleChange(key, value) {
     setAnswers(prev => ({ ...prev, [key]: value }));
@@ -1742,8 +1770,16 @@ export default function Matching() {
     } else {
       setPhase("analyzing");
       setTimeout(() => {
-        setMatches(scoreAnswers(answers));
+        const scored = scoreAnswers(answers);
+        setMatches(scored);
         setPhase("results");
+        // Save result to DB (fire-and-forget — never block the UI)
+        saveMatchingResult({
+          answers,
+          matched_solutions: scored.slice(0, 3).map(m => ({
+            id: m.id, title: m.title, matchScore: m.matchScore,
+          })),
+        }).catch(e => console.warn("[Matching] DB save failed:", e));
       }, 2800);
     }
   }
@@ -1753,19 +1789,50 @@ export default function Matching() {
   }
 
   function handleRestart() {
+    localStorage.removeItem(STORAGE_KEY);
     setStepIndex(0);
     setAnswers({});
     setMatches(null);
     setPhase("questions");
   }
 
+  const hasProgress = phase !== "questions" || stepIndex > 0 || Object.keys(answers).length > 0;
+
   return (
     <div style={{ minHeight: "100vh", background: B.white }}>
-      <div style={{ padding: isMobile ? "16px 16px 14px" : "24px 32px 20px", borderBottom: `1px solid ${B.gray200}` }}>
-        <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: B.gray900, marginBottom: 4 }}>Solution Matching</h1>
-        <p style={{ fontSize: 13, color: B.gray500 }}>
-          Answer 7 questions and receive a personalised needs analysis with matched DXC solutions.
-        </p>
+      <div style={{
+        padding: isMobile ? "16px 16px 14px" : "24px 32px 20px",
+        borderBottom: `1px solid ${B.gray200}`,
+        display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
+      }}>
+        <div>
+          <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: B.gray900, marginBottom: 4 }}>Solution Matching</h1>
+          <p style={{ fontSize: 13, color: B.gray500 }}>
+            Answer 7 questions and receive a personalised needs analysis with matched DXC solutions.
+          </p>
+        </div>
+        {/* Start Over button — only shown when there is progress to reset */}
+        {hasProgress && (
+          <button
+            onClick={handleRestart}
+            style={{
+              flexShrink: 0,
+              padding: "8px 16px",
+              border: `1.5px solid ${B.gray200}`,
+              borderRadius: 6,
+              background: B.white,
+              color: B.gray500,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = B.red; e.currentTarget.style.color = B.red; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = B.gray200; e.currentTarget.style.color = B.gray500; }}
+          >
+            Start Over
+          </button>
+        )}
       </div>
 
       <div style={{ maxWidth: phase === "results" ? 900 : 620, margin: "0 auto", padding: isMobile ? "24px 16px" : "40px 24px" }}>

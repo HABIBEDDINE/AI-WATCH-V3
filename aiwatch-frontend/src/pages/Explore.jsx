@@ -134,7 +134,7 @@ export default function Explore() {
   }, []);
 
   const [articles, setArticles]             = useState([]);
-  const [loading,  setLoading]              = useState(false);
+  const [loading,  setLoading]              = useState(true);  // true = show spinner immediately, no empty-state flash
   const [error,    setError]                = useState(null);
   const [selectedTopic, setSelectedTopic]   = useState("All Industries");
   const [selectedSignal]                    = useState("All");
@@ -148,7 +148,7 @@ export default function Explore() {
   const [reportFormat, setReportFormat]     = useState("md");
   const [searchTimeout, setSearchTimeout]   = useState(null);
 
-  const fetchArticles = useCallback(async (page = 1, pageSize = itemsPerPage) => {
+  const fetchArticles = useCallback(async (page = 1, pageSize = itemsPerPage, isRetry = false) => {
     setLoading(true);
     setError(null);
     try {
@@ -159,9 +159,16 @@ export default function Explore() {
         page,
         pageSize,
       });
-      setArticles(response.items || []);
-      setTotalCount(response.total || 0);
+      const items = response.items || [];
+      const total = response.total || 0;
+      setArticles(items);
+      setTotalCount(total);
       setCurrentPage(page);
+      // Retry once after 2 s if DB returned 0 items on first attempt (startup race)
+      if (total === 0 && !isRetry) {
+        setTimeout(() => fetchArticles(page, pageSize, true), 2000);
+        return;
+      }
     } catch (err) {
       setError(err.message);
       setArticles([]);
@@ -170,12 +177,11 @@ export default function Explore() {
     }
   }, [selectedTopic, selectedSignal, searchQuery, itemsPerPage]);
 
-  useEffect(() => { fetchArticles(1, itemsPerPage); }, [fetchArticles, itemsPerPage]);
-
+  // Single effect — fires whenever filters or fetchArticles reference changes
   useEffect(() => {
     setCurrentPage(1);
     fetchArticles(1, itemsPerPage);
-  }, [selectedTopic, selectedSignal, fetchArticles, itemsPerPage]);
+  }, [fetchArticles, itemsPerPage]);
 
   const handleSearch = (query) => {
     setSearchQuery(query);

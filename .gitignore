@@ -25,6 +25,7 @@ build/
 *.key
 *.pem
 secrets.json
+.mcp.json
 
 # ==========================================
 # IDE & Editor Files

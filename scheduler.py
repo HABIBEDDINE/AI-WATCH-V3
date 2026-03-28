@@ -8,6 +8,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from ingestion import run_ingestion
 from trends_service import refresh_trends
+from db import supabase
+from datetime import datetime, timedelta
 import asyncio
 import logging
 
@@ -16,8 +18,24 @@ logger = logging.getLogger(__name__)
 TOPICS = ["AI", "Fintech", "HealthTech", "Cybersecurity", "CleanTech", "Robotics"]
 
 
+def _db_cleanup():
+    """Delete articles older than 7 days and trends older than 30 days."""
+    try:
+        cutoff_articles = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        supabase.table("articles").delete().lt("ingestion_date", cutoff_articles).execute()
+        logger.info("🗑️  Deleted articles older than 7 days")
+    except Exception as e:
+        logger.error(f"❌ Article cleanup failed: {e}")
+    try:
+        cutoff_trends = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        supabase.table("trends").delete().lt("created_at", cutoff_trends).execute()
+        logger.info("🗑️  Deleted trends older than 30 days")
+    except Exception as e:
+        logger.error(f"❌ Trend cleanup failed: {e}")
+
+
 def scheduled_daily_ingest():
-    """Runs every day at 00:00 UTC. Fetches 20 trending articles per topic."""
+    """Runs every day at 00:00 UTC. Fetches 20 trending articles per topic, then cleans up DB."""
     logger.info("⏰ Scheduled ingestion starting — 00:00 UTC")
     for topic in TOPICS:
         try:
@@ -25,6 +43,7 @@ def scheduled_daily_ingest():
             logger.info(f"✅ Ingested topic: {topic}")
         except Exception as e:
             logger.error(f"❌ Failed topic {topic}: {e}")
+    _db_cleanup()
     logger.info("✅ Daily ingestion complete")
 
 

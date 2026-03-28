@@ -60,9 +60,11 @@
 
 ## Tech Stack
 
-**Backend**: FastAPI · Python 3.10+ · APScheduler · httpx · OpenAI SDK · Anthropic SDK
+**Backend**: FastAPI · Python 3.10+ · APScheduler · httpx · OpenAI SDK · Anthropic SDK · Supabase (PostgreSQL via REST)
 
 **Data Sources**: NewsAPI · NewsData · Google News RSS · Perplexity API
+
+**Database**: Supabase — `articles`, `solution_matches`, `trends`, `reports`, `newsletter_subscribers`, `dxc_solutions`, `matching_results`
 
 **Frontend**: React 19 · React Router v6 · Recharts · jsPDF · Lucide React
 
@@ -73,13 +75,15 @@
 ```
 ai-watch-V3/
 ├── api.py                    # FastAPI app — all REST endpoints
+├── db.py                     # Supabase REST client (pure requests, no SDK dependency)
 ├── ingestion.py              # Multi-source news fetching + keyword extraction
 ├── summarizer.py             # LLM summarization (OpenAI → Anthropic fallback)
 ├── trends_service.py         # Perplexity trend fetching + GPT clustering
 ├── report_generator.py       # Markdown + PDF report generation
-├── newsletter.py             # HTML email digest generation
+├── newsletter.py             # HTML email digest + SMTP delivery
 ├── powerbi_export.py         # CSV/JSON exports for Power BI
-├── scheduler.py              # APScheduler daily ingestion job
+├── scheduler.py              # APScheduler daily ingestion + DB cleanup job
+├── test_email.py             # SMTP connection + delivery diagnostic script
 ├── .env                      # API keys (DO NOT COMMIT)
 ├── .env.example              # Key template
 ├── requirements.txt
@@ -93,8 +97,8 @@ ai-watch-V3/
         │   ├── DataPreview.jsx     # Charts, stats, funding rounds, news sources
         │   ├── Reports.jsx         # Saved reports with PDF/Markdown export
         │   ├── Solutions.jsx       # DXC solution catalog with fit scoring
-        │   ├── Matching.jsx        # AI readiness quiz + solution matching
-        │   └── Newsletter.jsx      # Weekly digest with SMTP delivery
+        │   ├── Matching.jsx        # AI readiness quiz + solution matching (localStorage state)
+        │   └── Newsletter.jsx      # Weekly digest with SMTP delivery and subscription management
         ├── components/
         │   ├── CategoryCombobox.jsx  # Reusable industry filter dropdown
         │   └── RightPanel.jsx        # Sidebar right panel
@@ -111,9 +115,13 @@ ai-watch-V3/
 Copy `.env.example` to `.env` and fill in your keys:
 
 ```env
+# Supabase (required — persistent database)
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_KEY=<service_role JWT>          # from Project Settings → API → service_role
+
 # Required (at least one LLM key)
 OPENAI_API_KEY=sk-...
-OPENAI_API_KEY_BACKUP=sk-...     # Optional second OpenAI key — tried if primary fails
+OPENAI_API_KEY_BACKUP=sk-...             # Optional — tried if primary fails
 ANTHROPIC_API_KEY=sk-ant-...
 
 # News sources (at least one recommended)
@@ -127,12 +135,14 @@ PERPLEXITY_API_KEY=pplx-...
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=your@gmail.com
-SMTP_PASSWORD=your_gmail_app_password   # Gmail App Password (16 chars, no spaces)
-SMTP_FROM_EMAIL=your@gmail.com
+SMTP_PASSWORD=your_gmail_app_password    # Gmail App Password (16 chars, no spaces)
+SMTP_FROM_EMAIL=your@gmail.com           # Must match SMTP_USERNAME for Gmail
 NEWSLETTER_RECIPIENTS=recipient@example.com
 ```
 
 The system works with any combination — if the primary OpenAI key hits quota, the backup is tried automatically. If both OpenAI keys fail, Anthropic handles all LLM calls. If a news API key is missing, the other sources fill in. Without `PERPLEXITY_API_KEY` the Trends page will not load data. Without SMTP vars the newsletter is saved as an HTML file in `/reports/`.
+
+> **Gmail App Password**: Go to myaccount.google.com → Security → 2-Step Verification → App passwords. Generate one for "Mail". Use the 16-char code (no spaces) as `SMTP_PASSWORD`. Your regular Gmail password will not work. Run `python test_email.py` to verify delivery before using the UI.
 
 ---
 
@@ -193,6 +203,7 @@ npm start
 | POST | `/api/newsletter/send` | Trigger manual newsletter send |
 | POST | `/api/newsletter/subscribe` | Add email subscriber |
 | DELETE | `/api/newsletter/unsubscribe` | Remove email subscriber |
+| POST | `/api/matching/save` | Save quiz answers + matched solutions to DB |
 | GET | `/api/debug/sources` | Articles count per source API |
 | GET | `/api/test-llm` | Test OpenAI + Anthropic connectivity |
 
@@ -252,17 +263,41 @@ npm start
 - Shared PDF utility (`generatePDF.js`) — one design, used everywhere
 - Professional PDF: branded header, meta grid, TOC, category colour bars, keyword pills, clickable links
 - Mobile-responsive sidebar drawer with hamburger toggle
-- **Match DXC Solutions** — click-to-match on Article Detail and Trends cards; top 3 solutions with AI explanations; cached per session
+- **Match DXC Solutions** — click-to-match on Article Detail and Trends cards; top 3 solutions with AI explanations; cached in DB
 - **Brand rebrand** — deep navy `#1A4A9E` primary, burnt orange `#C45F00` secondary
+- **Supabase persistent DB** — all data stored in PostgreSQL; no more in-memory caches lost on restart
+- **Quiz state persistence** — Matching page saves progress to localStorage; survives navigation; "Start Over" button
+- **Quiz results saved to DB** — `matching_results` table records every completed quiz
+- **Email delivery fixed** — proper SMTP handshake (`ehlo` + `starttls`); errors surfaced in API status; `test_email.py` diagnostic tool
 
 #### Latest updates (March 2026)
-- **`POST /api/match-solutions`** — LLM matches any article or trend to top 3 DXC solutions from the 15-solution catalog; results cached in memory so repeat clicks cost zero API credits
-- **Dual OpenAI key fallback** — `OPENAI_API_KEY_BACKUP` env var; `_openai_keys()` helper loops through all configured keys before falling to Anthropic
+
+**Supabase persistent database** (March 28, 2026)
+- **`db.py`** — pure `requests`-based Supabase REST client; mirrors the supabase-py chain API with zero extra dependencies; works on Python 3.14
+- **7 Supabase tables** — `articles`, `solution_matches`, `trends`, `reports`, `newsletter_subscribers`, `dxc_solutions`, `matching_results`
+- **DB-first everywhere** — all endpoints check the database before calling any LLM or external API; summaries, solution matches, and trend deep-dives are never regenerated if already stored
+- **Dedup on ingest** — articles deduplicated by URL; existing records skipped cleanly
+- **TTL cleanup** — articles older than 7 days auto-deleted on each ingest run; trends older than 30 days purged by the daily scheduler
+- **15 DXC solutions seeded** — `dxc_solutions` table populated on server startup (idempotent)
+- **`matching_results` table** — quiz answers and top 3 matched solutions saved to DB after each quiz completion via `POST /api/matching/save`
+
+**Bug fixes** (March 28, 2026)
+- **Explore page — 0-article flash** — `loading` initialised to `true`; duplicate `useEffect` merged into one; auto-retry after 2 s if server returns 0 results
+- **Matching quiz — state lost on navigation** — full quiz state (step, answers, phase, matches) persisted to `localStorage`; restored on return; "Start Over" button clears saved state
+- **Matching quiz — results saved to DB** — `saveMatchingResult()` added to `api.js`; `POST /api/matching/save` endpoint inserts into `matching_results`
+
+**Email delivery fixed** (March 28, 2026)
+- **Root cause** — expired Gmail App Password caused silent `535: Username and Password not accepted` auth failures; errors were swallowed by a bare `except` clause so the UI showed "Send started" with no delivery
+- **`newsletter.py`** — added `ehlo()` before and after `starttls()`; `From` header forced to `SMTP_USERNAME` (Gmail requirement); bare `except` replaced with typed `except` + `raise` so errors propagate
+- **`api.py`** — background task now stores the full `type(e).__name__: message` in `last_status` instead of a generic string; visible via `GET /api/newsletter/status`
+- **`test_email.py`** — standalone SMTP diagnostic script; prints config (masked password), runs full TLS handshake, sends a real test email, and prints the exact auth or connection error if it fails
+
+**Earlier V3 updates**
+- **`POST /api/match-solutions`** — LLM matches any article or trend to top 3 DXC solutions; results cached in DB so repeat clicks cost zero API credits
+- **Dual OpenAI key fallback** — `OPENAI_API_KEY_BACKUP` env var; loops through all keys before falling to Anthropic
 - **Color rebrand** — all pages updated from legacy purple/green to `#1A4A9E` / `#C45F00`
-- **Perplexity key updated** — new active key configured; Trends page live
 - **AI Trends page** — live intelligence via Perplexity `sonar-pro` across 6 categories; Deep Dive modal; watchlist; client-side category filtering
-- **Summary language enforcement** — `system` message role forces English-only output regardless of article source language
-- **Summary caching** — generated summaries written back to `_articles_cache`; same article never re-summarised on repeat visits
+- **Summary language enforcement** — `system` message role forces English-only output
 - **`asyncio.to_thread()`** — all synchronous OpenAI/Anthropic SDK calls wrapped to prevent blocking the uvicorn event loop
 - **Health check debounce** — frontend flips to "API DOWN" only after 2 consecutive failures
 
@@ -277,4 +312,4 @@ npm start
 
 ---
 
-**Version**: 3.2.0 | **Branch**: ABDO → main | **Status**: Active Development | **Last Updated**: March 28, 2026
+**Version**: 3.3.0 | **Branch**: ABDO → main | **Status**: Active Development | **Last Updated**: March 28, 2026

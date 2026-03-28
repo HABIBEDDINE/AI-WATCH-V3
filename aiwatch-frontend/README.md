@@ -1,74 +1,54 @@
-# AI Watch Frontend
+# AI Watch — Frontend
 
-A front end for AI Watch project - a web app that helps leaders and CEOs stay live with the latest trends in AI.
+React 19 dashboard for the AI Watch strategic intelligence platform.
 
-## Getting Started with Create React App
+## Stack
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+- React 19 · React Router v6
+- Recharts (data visualisation)
+- jsPDF (PDF export)
+- Lucide React (icons)
+- Tailwind CSS
 
-## Available Scripts
+## Pages
 
-In the project directory, you can run:
+| Route | Page | Description |
+|-------|------|-------------|
+| `/explore` | Explore | News feed — filter by industry/signal, search, grid/list toggle, floating refresh FAB |
+| `/article/:id` | Article Detail | Full article — AI summary, key actors, funding, DXC solution match |
+| `/trends` | AI Trends | Perplexity live trend intelligence — Deep Dive modal, watchlist, solution match per card |
+| `/data` | Data Preview | Charts, stats, funding rounds, news sources table |
+| `/reports` | Reports | Saved intelligence reports with PDF / Markdown download |
+| `/solutions` | Solutions | DXC solution catalog with fit scoring |
+| `/matching` | Matching | AI readiness quiz → top 3 recommended DXC solutions (state persisted to localStorage) |
+| `/newsletter` | Newsletter | Weekly digest — subscriber management, manual send, SMTP delivery status |
 
-### `npm start`
+## Development
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```bash
+npm install
+npm start        # http://localhost:3000
+npm run build    # production build → build/
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+The app expects the backend API at `http://localhost:8000`.
+Override with: `REACT_APP_API_BASE_URL=https://your-api.example.com`
 
-### `npm test`
+## Services
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+All backend calls go through `src/services/api.js` — a thin wrapper with:
+- Automatic retry (2 retries, 700 ms delay)
+- Per-request timeout (default 25 s)
+- Consistent error handling
 
-### `npm run build`
+## Key Files
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```
+src/
+├── pages/          # One file per route
+├── components/     # Shared UI components
+├── services/
+│   └── api.js      # All API calls
+└── utils/
+    └── generatePDF.js   # Shared jsPDF report builder
+```

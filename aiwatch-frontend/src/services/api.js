@@ -266,4 +266,8 @@ export async function unsubscribeEmail(email) {
   return request(`/api/newsletter/unsubscribe?${params.toString()}`, { method: "DELETE" });
 }
 
+export async function saveMatchingResult(data) {
+  return request("/api/matching/save", { method: "POST", body: data, retries: 0, timeoutMs: 10000 });
+}
+
 export { API_BASE_URL };

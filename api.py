@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, Query, BackgroundTasks, Body
+from fastapi import FastAPI, Query, BackgroundTasks, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import List, Optional, Dict, Tuple
@@ -9,7 +9,10 @@ import time
 import random
 import csv
 import io
+import asyncio
 from datetime import datetime, timedelta
+
+from db import supabase
 
 from ingestion import fetch_sector_news
 from summarizer import summarize_articles
@@ -324,7 +327,7 @@ def get_radar(persona: str = Query("cto"), max_articles: int = 8):
     return {"products": products}
 
 
-_saved_trends: list = []
+_saved_trends: list = []  # kept for in-memory fallback; DB is source of truth
 
 
 @app.get("/api/trends/top")
@@ -335,7 +338,20 @@ def get_top_trends():
 
 @app.get("/api/trends/saved")
 def get_saved_trends():
-    return {"trends": _saved_trends}
+    """Return watchlisted trends from DB."""
+    try:
+        resp = supabase.table("trends").select("*").eq("watchlisted", True).execute()
+        saved = []
+        for row in (resp.data or []):
+            t = dict(row.get("data") or {})
+            t["watchlisted"] = True
+            if row.get("deepdive"):
+                t["deep_dive"] = row["deepdive"]
+            saved.append(t)
+        return {"trends": saved}
+    except Exception as e:
+        print(f"[DB] get_saved_trends error: {e}")
+        return {"trends": []}
 
 
 @app.get("/api/trends")
@@ -349,13 +365,62 @@ def get_trends(category: str = Query(None)):
 
 @app.post("/api/trends/refresh")
 async def trigger_trends_refresh():
+    """Refresh trends — returns DB cache if < 6h old, else calls Perplexity + saves to DB."""
+    # ── 1. Check DB freshness ─────────────────────────────────────────────
+    try:
+        cutoff_6h = (datetime.utcnow() - timedelta(hours=6)).isoformat()
+        fresh = supabase.table("trends").select("*").gte("created_at", cutoff_6h).execute()
+        if fresh.data:
+            trends_from_db = []
+            for row in fresh.data:
+                t = dict(row.get("data") or {})
+                t["watchlisted"] = row.get("watchlisted", False)
+                if row.get("deepdive"):
+                    t["deep_dive"] = row["deepdive"]
+                trends_from_db.append(t)
+            return {"trends": trends_from_db, "total": len(trends_from_db), "message": "Returned from DB cache (< 6h old)"}
+    except Exception as e:
+        print(f"[DB] trends freshness check failed: {e}")
+
+    # ── 2. Fetch fresh trends from Perplexity + GPT ───────────────────────
     trends = await refresh_trends()
+
+    # ── 3. Save to DB + delete trends > 30 days ───────────────────────────
+    try:
+        for t in trends:
+            supabase.table("trends").upsert({
+                "id":       t.get("id", ""),
+                "category": t.get("category", ""),
+                "topic":    t.get("topic", ""),
+                "data":     t,
+            }).execute()
+        cutoff_30d = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        supabase.table("trends").delete().lt("created_at", cutoff_30d).execute()
+        print(f"[DB] Saved {len(trends)} trends, deleted trends > 30 days")
+    except Exception as e:
+        print(f"[DB] trends save failed: {e}")
+
     return {"trends": trends, "total": len(trends), "message": f"Refreshed {len(trends)} trends"}
 
 
 @app.post("/api/trends/{trend_id}/deepdive")
 async def get_trend_deepdive(trend_id: str):
-    import os as _os, asyncio as _asyncio
+    """Generate or return cached deep-dive from DB."""
+    import os as _os
+
+    # ── 1. Check DB for existing deepdive ────────────────────────────────
+    try:
+        row = supabase.table("trends").select("deepdive,data").eq("id", trend_id).limit(1).execute()
+        if row.data:
+            db_row = row.data[0]
+            if db_row.get("deepdive"):
+                trend = dict(db_row.get("data") or {})
+                trend["deep_dive"] = db_row["deepdive"]
+                return trend
+    except Exception as e:
+        print(f"[DB] deepdive check failed: {e}")
+
+    # ── 2. Get trend from in-memory cache ────────────────────────────────
     trends, _ = get_cached_trends()
     trend = next((t for t in trends if t.get("id") == trend_id), None)
     if not trend:
@@ -376,34 +441,57 @@ async def get_trend_deepdive(trend_id: str):
         f"1. What It Is\n2. Enterprise Impact\n3. Action Plan\n"
         f"Each section: 2-3 sentences. Write as a senior analyst briefing a CTO."
     )
-    # Run synchronous OpenAI call in a thread so it doesn't block the event loop
-    resp = await _asyncio.to_thread(
+    resp = await asyncio.to_thread(
         client.chat.completions.create,
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=400,
     )
-    trend["deep_dive"] = resp.choices[0].message.content.strip()
+    deep_dive_text = resp.choices[0].message.content.strip()
+    trend["deep_dive"] = deep_dive_text
+
+    # ── 3. Save deepdive to DB ────────────────────────────────────────────
+    try:
+        supabase.table("trends").upsert({
+            "id":       trend_id,
+            "category": trend.get("category", ""),
+            "topic":    trend.get("topic", ""),
+            "deepdive": deep_dive_text,
+            "data":     trend,
+        }).execute()
+    except Exception as e:
+        print(f"[DB] deepdive save failed: {e}")
+
     return trend
 
 
 @app.post("/api/trends/{trend_id}/save")
 def save_trend(trend_id: str):
-    global _saved_trends
+    """Toggle watchlisted=True for a trend in DB."""
     trends, _ = get_cached_trends()
     trend = next((t for t in trends if t.get("id") == trend_id), None)
-    if not trend:
-        raise HTTPException(status_code=404, detail="Trend not found")
-    if not any(t.get("id") == trend_id for t in _saved_trends):
+    try:
+        supabase.table("trends").upsert({
+            "id":          trend_id,
+            "category":    (trend or {}).get("category", ""),
+            "topic":       (trend or {}).get("topic", ""),
+            "watchlisted": True,
+            "data":        trend or {},
+        }).execute()
+    except Exception as e:
+        print(f"[DB] save_trend error: {e}")
+    if trend:
         trend["saved"] = True
-        _saved_trends.append(trend)
     return {"saved": True}
 
 
 @app.delete("/api/trends/{trend_id}/save")
 def unsave_trend(trend_id: str):
-    global _saved_trends
-    _saved_trends = [t for t in _saved_trends if t.get("id") != trend_id]
+    """Toggle watchlisted=False for a trend in DB."""
+    try:
+        supabase.table("trends").update({"watchlisted": False}).eq("id", trend_id).execute()
+    except Exception as e:
+        print(f"[DB] unsave_trend error: {e}")
     trends, _ = get_cached_trends()
     for t in trends:
         if t.get("id") == trend_id:
@@ -510,25 +598,48 @@ def get_journey_data(persona: str = Query("cto"), max_articles: int = 6):
 @app.get("/health")
 def health_check():
     """Simple backend health endpoint for frontend status indicator."""
+    try:
+        resp = supabase.table("articles").select("id", count="exact").limit(1).execute()
+        article_count = resp.count if resp.count is not None else len(resp.data)
+    except Exception:
+        article_count = 0
     return {
         "status": "ok",
         "service": "ai-watch-api",
-        "cache_entries": len(_summary_cache),
+        "article_count": article_count,
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
 
 # ==================== NEW ENDPOINTS FOR FRONTEND ====================
 
-# Global article cache (replace with database in production)
-_articles_cache: List[dict] = []
 _last_ingest_time = None
+
+
+def _fetch_all_articles(topic=None, signal=None, industry=None, date_from=None, date_to=None):
+    """Query articles from Supabase with optional server-side filters."""
+    try:
+        query = supabase.table("articles").select("*").order("ingestion_date", desc=True)
+        if topic:
+            query = query.ilike("topic", topic)
+        if signal and signal != "All":
+            query = query.eq("signal_strength", signal)
+        if industry:
+            query = query.ilike("industry", f"%{industry}%")
+        if date_from:
+            query = query.gte("published_at", date_from)
+        if date_to:
+            query = query.lte("published_at", date_to)
+        return query.execute().data or []
+    except Exception as e:
+        print(f"[DB] _fetch_all_articles error: {e}")
+        return []
 
 
 @app.get("/api/articles")
 def get_articles(
     topic: Optional[str] = Query(None),
-    signal: Optional[str] = Query(None),  # Strong/Weak/All
+    signal: Optional[str] = Query(None),
     industry: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
@@ -536,79 +647,53 @@ def get_articles(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
 ):
-    """
-    Get articles with filtering and pagination.
-    
-    Query params:
-        - topic: Filter by topic (AI, Fintech, etc.)
-        - signal: Filter by signal strength (Strong/Weak/All)
-        - industry: Filter by industry
-        - search: Full-text search in title/summary
-        - page: Page number (1-indexed)
-        - page_size: Items per page (1-100)
-        - date_from: ISO date format (YYYY-MM-DD)
-        - date_to: ISO date format (YYYY-MM-DD)
-    """
-    
-    # Start with all cached articles
-    filtered = _articles_cache.copy()
-    
-    # Apply filters
-    if topic:
-        filtered = [a for a in filtered if a.get('topic', '').lower() == topic.lower()]
-    
-    if signal and signal != "All":
-        filtered = [a for a in filtered if a.get('signal_strength') == signal]
-    
-    if industry:
-        filtered = [a for a in filtered if industry.lower() in a.get('industry', '').lower()]
-    
+    """Get articles from DB with filtering and pagination."""
+    filtered = _fetch_all_articles(topic=topic, signal=signal, industry=industry,
+                                   date_from=date_from, date_to=date_to)
     if search:
-        search_lower = search.lower()
-        filtered = [
-            a for a in filtered 
-            if search_lower in a.get('title', '').lower() 
-            or search_lower in a.get('summary', '').lower()
-        ]
-    
-    if date_from:
-        filtered = [a for a in filtered if a.get('published_at', '') >= date_from]
-    
-    if date_to:
-        filtered = [a for a in filtered if a.get('published_at', '') <= date_to]
-    
-    # Pagination
+        sl = search.lower()
+        filtered = [a for a in filtered
+                    if sl in a.get("title", "").lower() or sl in a.get("summary", "").lower()]
     total = len(filtered)
     start = (page - 1) * page_size
-    end = start + page_size
-    paginated = filtered[start:end]
-    
     return {
-        "items": paginated,
+        "items": filtered[start:start + page_size],
         "total": total,
         "page": page,
         "page_size": page_size,
-        "pages": (total + page_size - 1) // page_size,
+        "pages": max(1, (total + page_size - 1) // page_size),
     }
 
 
 @app.get("/api/articles/{article_id}")
 def get_article_detail(article_id: str):
-    """Get detailed view of a single article."""
-    for article in _articles_cache:
-        if article.get('id') == article_id:
-            return article
-    
-    return {"error": "Article not found"}, 404
+    """Get a single article from DB."""
+    try:
+        resp = supabase.table("articles").select("*").eq("id", article_id).limit(1).execute()
+        if resp.data:
+            return resp.data[0]
+    except Exception as e:
+        print(f"[DB] get_article_detail error: {e}")
+    raise HTTPException(status_code=404, detail="Article not found")
 
 
 @app.post("/api/summarize")
 async def summarize_article_endpoint(article: dict):
-    """Generate an AI summary for any article (stateless — OpenAI → Anthropic fallback)."""
-    import os as _os, asyncio as _asyncio
+    """Generate an AI summary — checks DB first, generates + saves if missing."""
+    import os as _os
+    article_id = article.get("id")
+
+    # ── 1. DB check — return cached summary if it exists ────────────────────
+    if article_id:
+        try:
+            row = supabase.table("articles").select("summary").eq("id", article_id).limit(1).execute()
+            if row.data and row.data[0].get("summary"):
+                return {"summary": row.data[0]["summary"]}
+        except Exception as e:
+            print(f"[summarize] DB check failed: {e}")
+
+    # ── 2. Generate summary ─────────────────────────────────────────────────
     title       = article.get("title", "")
-    # Never feed the stored summary as input — it may already be in the wrong
-    # language and will bias the model to respond in that language.
     description = article.get("description", "") or ""
     content     = article.get("content", "")
     text        = f"Title: {title}\n\n{description}\n\n{content}"[:4000]
@@ -630,7 +715,7 @@ async def summarize_article_endpoint(article: dict):
         try:
             from openai import OpenAI as _OpenAI
             client = _OpenAI(api_key=openai_key)
-            resp = await _asyncio.to_thread(
+            resp = await asyncio.to_thread(
                 client.chat.completions.create,
                 model="gpt-4o-mini",
                 messages=[
@@ -640,7 +725,7 @@ async def summarize_article_endpoint(article: dict):
                 max_tokens=300,
             )
             generated_summary = resp.choices[0].message.content.strip()
-            break  # success — stop trying keys
+            break
         except Exception as e:
             print(f"[summarize] OpenAI key ...{openai_key[-6:]} failed: {e}")
 
@@ -650,7 +735,7 @@ async def summarize_article_endpoint(article: dict):
             try:
                 import anthropic as _anthropic
                 client = _anthropic.Anthropic(api_key=anthropic_key)
-                resp = await _asyncio.to_thread(
+                resp = await asyncio.to_thread(
                     client.messages.create,
                     model="claude-haiku-4-5-20251001",
                     max_tokens=300,
@@ -664,37 +749,51 @@ async def summarize_article_endpoint(article: dict):
     if not generated_summary:
         raise HTTPException(status_code=503, detail="No LLM key configured. Add OPENAI_API_KEY or ANTHROPIC_API_KEY to .env")
 
-    # Persist the generated summary back into the in-memory cache so the
-    # same article is never re-summarised on the next page visit.
-    article_id = article.get("id")
+    # ── 3. Persist summary to DB ─────────────────────────────────────────────
     if article_id:
-        for cached in _articles_cache:
-            if cached.get("id") == article_id:
-                cached["summary"] = generated_summary
-                break
+        try:
+            supabase.table("articles").update({"summary": generated_summary}).eq("id", article_id).execute()
+        except Exception as e:
+            print(f"[summarize] DB update failed: {e}")
 
     return {"summary": generated_summary}
 
 
 @app.post("/api/match-solutions")
 async def match_solutions_endpoint(payload: dict):
-    """Match an article or trend to the top 3 most relevant DXC solutions.
-    Never called automatically — only triggered by an explicit user click.
-    Results are cached in memory so repeat clicks cost zero API credits."""
+    """Match an article or trend to top 3 DXC solutions.
+    Checks solution_matches table first — LLM only called on first request."""
     print("✅ match-solutions endpoint hit")
-    import os as _os, asyncio as _asyncio, hashlib as _hashlib, json as _json
+    import os as _os, hashlib as _hashlib, json as _json
 
     title    = payload.get("title", "")
     summary  = payload.get("summary", "")
     industry = payload.get("industry", "")
     signal   = payload.get("signal", "")
+    article_id = payload.get("id", "")
 
-    # Return cached result immediately — no LLM call needed
+    # ── 1. DB check — return cached matches if they exist ───────────────────
     cache_key = _hashlib.md5(f"{title}|{industry}".encode()).hexdigest()
-    if cache_key in _match_solutions_cache:
-        return _match_solutions_cache[cache_key]
+    if article_id:
+        try:
+            row = supabase.table("solution_matches").select("matches").eq("id", cache_key).limit(1).execute()
+            if row.data:
+                return {"matches": row.data[0]["matches"]}
+        except Exception as e:
+            print(f"[match-solutions] DB check failed: {e}")
 
-    solutions_text = "\n".join(DXC_SOLUTIONS_CATALOG)
+    # ── 2. Build prompt (fetch solutions from DB if available) ───────────────
+    try:
+        sol_rows = supabase.table("dxc_solutions").select("number,name,description").order("number").execute()
+        if sol_rows.data:
+            solutions_text = "\n".join(
+                f"{r['number']}. {r['name']} — {r['description']}" for r in sol_rows.data
+            )
+        else:
+            solutions_text = "\n".join(DXC_SOLUTIONS_CATALOG)
+    except Exception:
+        solutions_text = "\n".join(DXC_SOLUTIONS_CATALOG)
+
     system_msg = (
         "You are a DXC Technology solutions advisor. "
         "You match technology news and trends to specific DXC solutions and explain why each is relevant. "
@@ -719,7 +818,7 @@ async def match_solutions_endpoint(payload: dict):
         try:
             from openai import OpenAI as _OpenAI
             client = _OpenAI(api_key=openai_key)
-            resp = await _asyncio.to_thread(
+            resp = await asyncio.to_thread(
                 client.chat.completions.create,
                 model="gpt-4o-mini",
                 messages=[
@@ -732,7 +831,7 @@ async def match_solutions_endpoint(payload: dict):
             parsed = _json.loads(resp.choices[0].message.content.strip())
             if isinstance(parsed.get("matches"), list):
                 result = parsed["matches"]
-                break  # success — stop trying keys
+                break
         except Exception as e:
             print(f"[match-solutions] OpenAI key ...{openai_key[-6:]} failed: {e}")
 
@@ -742,7 +841,7 @@ async def match_solutions_endpoint(payload: dict):
             try:
                 import anthropic as _anthropic
                 client = _anthropic.Anthropic(api_key=anthropic_key)
-                resp = await _asyncio.to_thread(
+                resp = await asyncio.to_thread(
                     client.messages.create,
                     model="claude-haiku-4-5-20251001",
                     max_tokens=500,
@@ -750,7 +849,6 @@ async def match_solutions_endpoint(payload: dict):
                     messages=[{"role": "user", "content": prompt}],
                 )
                 raw = resp.content[0].text.strip()
-                # Strip markdown fences if the model added them
                 if raw.startswith("```"):
                     raw = "\n".join(raw.split("\n")[1:])
                     raw = raw.rsplit("```", 1)[0].strip()
@@ -767,18 +865,27 @@ async def match_solutions_endpoint(payload: dict):
         {"solution": m.get("solution", ""), "explanation": m.get("explanation", "")}
         for m in result[:3]
     ]
-    response = {"matches": matches}
-    _match_solutions_cache[cache_key] = response
-    return response
+    response_data = {"matches": matches}
+
+    # ── 3. Persist to solution_matches table ─────────────────────────────────
+    try:
+        supabase.table("solution_matches").upsert({
+            "id": cache_key,
+            "article_id": article_id or cache_key,
+            "matches": matches,
+        }).execute()
+    except Exception as e:
+        print(f"[match-solutions] DB save failed: {e}")
+
+    return response_data
 
 
 @app.get("/api/signals/live")
 def get_live_signals():
-    """Get current live signals metrics."""
-    # Count signal types from cached articles
-    strong_count = sum(1 for a in _articles_cache if a.get('signal_strength') == 'Strong')
-    weak_count = sum(1 for a in _articles_cache if a.get('signal_strength') == 'Weak')
-    
+    """Get current live signals metrics from DB."""
+    articles = _fetch_all_articles()
+    strong_count = sum(1 for a in articles if a.get("signal_strength") == "Strong")
+    weak_count   = sum(1 for a in articles if a.get("signal_strength") == "Weak")
     return {
         "agentic_ai": strong_count,
         "patent_filings": strong_count // 2,
@@ -789,69 +896,75 @@ def get_live_signals():
 
 @app.get("/api/sectors/top")
 def get_top_sectors():
-    """Get top performing sectors based on article activity."""
-    sector_scores = {}
-    
-    for article in _articles_cache:
-        industry = article.get('industry', 'General')
-        relevance = article.get('relevance', 5)
-        sector_scores[industry] = sector_scores.get(industry, 0) + relevance
-    
-    # Sort and convert to TopSector format
+    """Get top performing sectors based on article activity from DB."""
+    articles = _fetch_all_articles()
+    sector_scores: Dict[str, int] = {}
+    for a in articles:
+        industry = a.get("industry", "General")
+        sector_scores[industry] = sector_scores.get(industry, 0) + a.get("relevance", 5)
     sorted_sectors = sorted(sector_scores.items(), key=lambda x: x[1], reverse=True)
-    
+    total = len(articles) or 1
     return [
-        {
-            "name": name,
-            "score": min(100, int(score / len(_articles_cache) * 10)) if _articles_cache else 50,
-        }
+        {"name": name, "score": min(100, int(score / total * 10))}
         for name, score in sorted_sectors[:10]
     ]
 
 
-# Mock reports data
-MOCK_REPORTS = []  # Reports are now saved via POST /api/reports endpoint
-
-
-
 @app.get("/api/reports")
 def get_reports(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100)):
-    """Get list of all reports with pagination."""
-    total = len(MOCK_REPORTS)
+    """Get all reports from DB with pagination."""
+    try:
+        resp = supabase.table("reports").select("*").order("generated_date", desc=True).execute()
+        all_reports = resp.data or []
+    except Exception as e:
+        print(f"[DB] get_reports error: {e}")
+        all_reports = []
+    total = len(all_reports)
     start = (page - 1) * page_size
-    end = start + page_size
-    paginated = MOCK_REPORTS[start:end]
-    
     return {
-        "items": paginated,
+        "items": all_reports[start:start + page_size],
         "total": total,
         "page": page,
         "page_size": page_size,
-        "pages": (total + page_size - 1) // page_size,
+        "pages": max(1, (total + page_size - 1) // page_size),
     }
 
 
 @app.get("/api/reports/{report_id}")
 def get_report_detail(report_id: str):
-    """Get detailed view of a single report."""
-    for report in MOCK_REPORTS:
-        if report.get('id') == report_id:
-            return report
-    
-    return {"error": "Report not found"}, 404
+    """Get a single report from DB."""
+    try:
+        resp = supabase.table("reports").select("*").eq("id", report_id).limit(1).execute()
+        if resp.data:
+            return resp.data[0]
+    except Exception as e:
+        print(f"[DB] get_report_detail error: {e}")
+    raise HTTPException(status_code=404, detail="Report not found")
+
+
+@app.post("/api/matching/save")
+def save_matching_result(payload: dict):
+    """Save quiz answers and matched solutions to matching_results table."""
+    import uuid as _uuid
+    row = {
+        "id": str(_uuid.uuid4()),
+        "answers": payload.get("answers", {}),
+        "matched_solutions": payload.get("matched_solutions", []),
+    }
+    try:
+        supabase.table("matching_results").insert(row).execute()
+        return {"status": "saved", "id": row["id"]}
+    except Exception as e:
+        print(f"[DB] save_matching_result error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/reports")
 def save_report(report_data: dict):
-    """Save a new report from Explore page."""
+    """Save a new report to DB."""
     import uuid
-    from datetime import datetime
-    
-    # Generate unique ID and timestamp
     report_id = str(uuid.uuid4())
     generated_date = datetime.now().isoformat()
-    
-    # Create report object
     report = {
         "id": report_id,
         "title": report_data.get("title", "Untitled Report"),
@@ -862,51 +975,40 @@ def save_report(report_data: dict):
         "key_points": report_data.get("key_points", []),
         "articles": report_data.get("articles", []),
     }
-    
-    # Save to list
-    MOCK_REPORTS.append(report)
-    
-    return {
-        "status": "success",
-        "report_id": report_id,
-        "message": "Report saved successfully. Check Reports page to view.",
-    }
+    try:
+        supabase.table("reports").insert(report).execute()
+    except Exception as e:
+        print(f"[DB] save_report error: {e}")
+    return {"status": "success", "report_id": report_id, "message": "Report saved successfully. Check Reports page to view."}
 
 
 @app.delete("/api/reports/{report_id}")
 def delete_report(report_id: str):
-    """Delete a report."""
-    global MOCK_REPORTS
-    
-    for i, report in enumerate(MOCK_REPORTS):
-        if report.get('id') == report_id:
-            MOCK_REPORTS.pop(i)
-            return {"status": "success", "message": "Report deleted"}
-    
-    return {"error": "Report not found"}, 404
+    """Delete a report from DB."""
+    try:
+        supabase.table("reports").delete().eq("id", report_id).execute()
+        return {"status": "success", "message": "Report deleted"}
+    except Exception as e:
+        print(f"[DB] delete_report error: {e}")
+        raise HTTPException(status_code=404, detail="Report not found")
 
 
 def _perform_ingestion(topic: Optional[str] = None):
-    """Background task to perform actual ingestion."""
+    """Background task: fetch articles, dedup by URL against DB, insert new, delete >7 days."""
     from ingestion import run_ingestion, PRESET_SECTORS
-    import logging
-    import traceback
-    
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import logging, traceback
+
     logger = logging.getLogger(__name__)
-    
-    global _articles_cache, _last_ingest_time
-    
+    global _last_ingest_time
+
     try:
-        logger.info(f"🚀 Starting background ingestion for topic: {topic or 'ALL'}")
-        
-        results = []
-        
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        logger.info(f"🚀 Starting ingestion for topic: {topic or 'ALL'}")
 
         def fetch_topic(t):
             try:
                 arts = run_ingestion(topic=t, limit=15)
-                logger.info(f"  ✓ {t}: {len(arts)} articles")
+                logger.info(f"  ✓ {t}: {len(arts)} articles fetched")
                 return arts
             except Exception as e:
                 logger.warning(f"  ⚠ {t}: {e}")
@@ -916,25 +1018,63 @@ def _perform_ingestion(topic: Optional[str] = None):
             if topic not in PRESET_SECTORS:
                 logger.error(f"❌ Unknown topic: {topic}")
                 return
-            logger.info(f"📡 Fetching articles for topic: {topic}")
-            results.extend(fetch_topic(topic))
+            results = fetch_topic(topic)
         else:
             topics = list(PRESET_SECTORS.keys())
-            logger.info(f"📡 Fetching all {len(topics)} topics in parallel...")
+            results = []
             with ThreadPoolExecutor(max_workers=len(topics)) as executor:
                 futures = {executor.submit(fetch_topic, t): t for t in topics}
                 for fut in as_completed(futures):
                     results.extend(fut.result())
-        
-        # Update cache
-        _articles_cache.clear()
-        _articles_cache.extend(results)
+
+        # ── Dedup by URL: only insert articles whose URL is not yet in DB ────
+        inserted = 0
+        skipped  = 0
+        for art in results:
+            url = art.get("url", "").strip()
+            if not url:
+                continue  # skip articles with no URL
+            try:
+                existing = supabase.table("articles").select("id").eq("url", url).limit(1).execute()
+                if existing.data:
+                    skipped += 1
+                    continue  # already in DB — skip
+                # Prepare row (only known columns)
+                row = {
+                    "id":             art.get("id", ""),
+                    "title":          art.get("title", "")[:500],
+                    "description":    (art.get("description") or "")[:1000],
+                    "summary":        (art.get("summary") or "")[:2000],
+                    "url":            url,
+                    "source":         art.get("source", ""),
+                    "published_at":   art.get("published_at", ""),
+                    "topic":          art.get("topic", ""),
+                    "signal_strength": art.get("signal_strength", "Weak"),
+                    "relevance":      art.get("relevance", 5),
+                    "industry":       art.get("industry", ""),
+                    "market_segment": art.get("market_segment", ""),
+                    "image_url":      art.get("image_url", ""),
+                    "source_api":     art.get("source_api", ""),
+                    "keywords":       art.get("keywords", []),
+                }
+                supabase.table("articles").insert(row).execute()
+                inserted += 1
+            except Exception as e:
+                logger.warning(f"  ⚠ insert failed for '{art.get('title','')[:50]}': {e}")
+
+        # ── Delete articles older than 7 days ────────────────────────────────
+        cutoff = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        try:
+            supabase.table("articles").delete().lt("ingestion_date", cutoff).execute()
+            logger.info("🗑️  Deleted articles older than 7 days")
+        except Exception as e:
+            logger.warning(f"  ⚠ cleanup failed: {e}")
+
         _last_ingest_time = datetime.now().isoformat()
-        
-        logger.info(f"✅ Background ingestion complete. Total articles: {len(results)}")
-        
+        logger.info(f"✅ Ingestion complete — inserted: {inserted}, skipped (dup): {skipped}")
+
     except Exception as e:
-        logger.error(f"❌ Background ingestion error: {e}")
+        logger.error(f"❌ Ingestion error: {e}")
         logger.error(traceback.format_exc())
 
 
@@ -969,101 +1109,53 @@ def trigger_ingest(background_tasks: BackgroundTasks, topic: Optional[str] = Que
 
 @app.get("/api/funding")
 def get_funding_rounds(page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)):
-    """Get all detected funding rounds from articles."""
-    # Extract funding rounds from articles
+    """Get detected funding rounds from DB articles."""
+    articles = _fetch_all_articles()
     funding_rounds = []
-    
-    for article in _articles_cache:
-        if 'funding_rounds' in article:
-            funding_rounds.extend(article['funding_rounds'])
-    
-    # Pagination
+    for a in articles:
+        if "funding_rounds" in a:
+            funding_rounds.extend(a["funding_rounds"])
     total = len(funding_rounds)
     start = (page - 1) * page_size
-    end = start + page_size
-    
-    return {
-        "items": funding_rounds[start:end],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+    return {"items": funding_rounds[start:start + page_size], "total": total, "page": page, "page_size": page_size}
 
 
 @app.get("/api/actors")
 def get_key_actors(page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)):
-    """Get all detected key actors from articles."""
-    # Extract and deduplicate actors
-    actors_map = {}
-    
-    for article in _articles_cache:
-        if 'key_actors' in article:
-            for actor in article['key_actors']:
-                key = f"{actor['name']}_{actor['type']}"
+    """Get key actors from DB articles."""
+    articles = _fetch_all_articles()
+    actors_map: Dict[str, dict] = {}
+    for a in articles:
+        if "key_actors" in a and isinstance(a["key_actors"], list):
+            for actor in a["key_actors"]:
+                if not isinstance(actor, dict):
+                    continue
+                key = f"{actor.get('name','')}_{actor.get('type','')}"
                 if key not in actors_map:
-                    actors_map[key] = {**actor, 'mentions': 0}
-                actors_map[key]['mentions'] += 1
-    
-    # Sort by mentions
-    actors_list = sorted(actors_map.values(), key=lambda x: x['mentions'], reverse=True)
-    
-    # Pagination
+                    actors_map[key] = {**actor, "mentions": 0}
+                actors_map[key]["mentions"] += 1
+    actors_list = sorted(actors_map.values(), key=lambda x: x["mentions"], reverse=True)
     total = len(actors_list)
     start = (page - 1) * page_size
-    end = start + page_size
-    
-    return {
-        "items": actors_list[start:end],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+    return {"items": actors_list[start:start + page_size], "total": total, "page": page, "page_size": page_size}
 
 
 @app.get("/api/export/csv")
 def export_articles_csv(topic: Optional[str] = Query(None), signal: Optional[str] = Query(None)):
-    """
-    Export current filtered articles as CSV.
-    Returns CSV file download.
-    """
-    import csv
-    import io
-    from fastapi.responses import StreamingResponse
-    
-    # Get filtered articles
-    filtered = _articles_cache.copy()
-    
-    if topic:
-        filtered = [a for a in filtered if a.get('topic', '').lower() == topic.lower()]
-    
-    if signal and signal != "All":
-        filtered = [a for a in filtered if a.get('signal_strength') == signal]
-    
-    # Create CSV
+    """Export articles from DB as CSV file download."""
+    filtered = _fetch_all_articles(topic=topic, signal=signal)
     output = io.StringIO()
-    writer = csv.DictWriter(
-        output,
-        fieldnames=['title', 'source', 'published_at', 'signal_strength', 'relevance', 'industry', 'url']
-    )
+    writer = csv.DictWriter(output, fieldnames=["title", "source", "published_at", "signal_strength", "relevance", "industry", "url"])
     writer.writeheader()
-    
-    for article in filtered:
+    for a in filtered:
         writer.writerow({
-            'title': article.get('title', ''),
-            'source': article.get('source', ''),
-            'published_at': article.get('published_at', ''),
-            'signal_strength': article.get('signal_strength', ''),
-            'relevance': article.get('relevance', ''),
-            'industry': article.get('industry', ''),
-            'url': article.get('url', ''),
+            "title": a.get("title", ""), "source": a.get("source", ""),
+            "published_at": a.get("published_at", ""), "signal_strength": a.get("signal_strength", ""),
+            "relevance": a.get("relevance", ""), "industry": a.get("industry", ""), "url": a.get("url", ""),
         })
-    
     output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=articles_export.csv"}
-    )
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=articles_export.csv"})
 
 
 # Mock article data for initial cache population
@@ -1142,8 +1234,43 @@ def initialize_mock_cache():
 # Startup event to initialize scheduler
 @app.on_event("startup")
 async def startup():
-    """Initialize background scheduler on app startup."""
-    # Removed mock data initialization - using real NEWS_API data only
+    """Initialize scheduler, seed DXC solutions, load subscribers from DB."""
+    # ── Seed dxc_solutions table (idempotent — skips if already seeded) ──
+    try:
+        existing = supabase.table("dxc_solutions").select("id").limit(1).execute()
+        if not existing.data:
+            rows = []
+            for item in DXC_SOLUTIONS_CATALOG:
+                # Parse "N. Name — Description"
+                try:
+                    num_rest = item.split(". ", 1)
+                    num = int(num_rest[0].strip())
+                    name_desc = num_rest[1].split(" — ", 1)
+                    name = name_desc[0].strip()
+                    desc = name_desc[1].strip() if len(name_desc) > 1 else ""
+                    rows.append({"number": num, "name": name, "description": desc})
+                except Exception:
+                    pass
+            if rows:
+                supabase.table("dxc_solutions").insert(rows).execute()
+                print(f"✅ Seeded {len(rows)} DXC solutions into DB")
+        else:
+            print("✅ DXC solutions already seeded")
+    except Exception as e:
+        print(f"⚠️  DXC seed failed: {e}")
+
+    # ── Load newsletter subscribers from DB into in-memory state ──────────
+    try:
+        subs = supabase.table("newsletter_subscribers").select("email").execute()
+        db_emails = [r["email"] for r in (subs.data or [])]
+        cfg = newsletter_module.get_smtp_config()
+        env_emails = [r for r in cfg.get("to_emails", []) if r.strip()]
+        all_emails = list(dict.fromkeys(env_emails + db_emails))  # dedup, preserve order
+        _newsletter_state["recipients"] = all_emails
+        print(f"✅ Loaded {len(db_emails)} subscriber(s) from DB")
+    except Exception as e:
+        print(f"⚠️  Subscriber load failed: {e}")
+
     scheduler.start()
 
 
@@ -1173,8 +1300,8 @@ def _get_recipients() -> List[str]:
 
 
 def _build_sector_data_for_newsletter(persona: str = "cto", max_articles: int = 10) -> dict:
-    """Build sector_data dict from the in-memory articles cache."""
-    articles = _articles_cache[:max_articles] if _articles_cache else []
+    """Build sector_data dict from DB articles."""
+    articles = _fetch_all_articles()[:max_articles]
 
     # Group by topic/industry
     sector_map: dict = {}
@@ -1221,15 +1348,15 @@ async def _perform_newsletter_send(persona: str = "cto"):
             os.environ["NEWSLETTER_RECIPIENTS"] = ",".join(recipients)
 
         today = datetime.now().strftime("%B %d, %Y")
-        success = newsletter_module.send_newsletter(
+        newsletter_module.send_newsletter(
             sector_data,
             subject=f"AI Watch Daily Intelligence — {today}"
         )
         _newsletter_state["last_sent"] = datetime.now().isoformat()
-        _newsletter_state["last_status"] = "sent" if success else "saved_only"
+        _newsletter_state["last_status"] = "sent"
     except Exception as e:
-        print(f"Newsletter send error: {e}")
-        _newsletter_state["last_status"] = f"error: {str(e)}"
+        print(f"[Newsletter] send error ({type(e).__name__}): {e}")
+        _newsletter_state["last_status"] = f"error: {type(e).__name__}: {e}"
     finally:
         _newsletter_state["sending"] = False
 
@@ -1271,10 +1398,15 @@ async def send_newsletter_now(
 
 @app.post("/api/newsletter/subscribe")
 def subscribe_email(email: str = Body(..., embed=True)):
-    """Add an email address to the newsletter recipients."""
+    """Add email to newsletter_subscribers in DB."""
     email = email.strip().lower()
     if not email or "@" not in email:
         return {"status": "error", "message": "Invalid email address."}
+    try:
+        supabase.table("newsletter_subscribers").upsert({"email": email}).execute()
+    except Exception as e:
+        print(f"[DB] subscribe error: {e}")
+    # Also keep in-memory list in sync
     recipients = _get_recipients()
     if _newsletter_state["recipients"] is None:
         _newsletter_state["recipients"] = recipients
@@ -1285,8 +1417,12 @@ def subscribe_email(email: str = Body(..., embed=True)):
 
 @app.delete("/api/newsletter/unsubscribe")
 def unsubscribe_email(email: str = Query(...)):
-    """Remove an email address from newsletter recipients."""
+    """Remove email from newsletter_subscribers in DB."""
     email = email.strip().lower()
+    try:
+        supabase.table("newsletter_subscribers").delete().eq("email", email).execute()
+    except Exception as e:
+        print(f"[DB] unsubscribe error: {e}")
     recipients = _get_recipients()
     if _newsletter_state["recipients"] is None:
         _newsletter_state["recipients"] = recipients

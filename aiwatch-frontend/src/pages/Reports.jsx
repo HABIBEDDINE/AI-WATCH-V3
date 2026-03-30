@@ -208,7 +208,7 @@ function GenerateReportModal({ onClose, onSaved }) {
                     onClick={() => toggle(article.id)}
                     style={{
                       display: "flex", alignItems: "flex-start", gap: 12,
-                      padding: "14px 0", borderBottom: `1px solid ${B.gray100}`,
+                      borderBottom: `1px solid ${B.gray100}`,
                       cursor: "pointer",
                       background: isChecked ? ACCENT_BG : "transparent",
                       margin: "0 -24px", padding: "14px 24px",

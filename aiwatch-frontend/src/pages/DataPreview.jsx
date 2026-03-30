@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   BarChart, Bar,
-  PieChart, Pie, Cell,
-  AreaChart, Area,
+  Cell,
   XAxis, YAxis,
   CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer,
+  ResponsiveContainer,
 } from "recharts";
 import { getArticles } from "../services/api";
 
@@ -31,20 +30,6 @@ const B = {
   blue: "#1a5fa8",
   darkBg: "#0a0a0a",
 };
-
-// Mock data
-const MOCK_ARTICLES = [
-  { id: 1, title: "DeepSeek AI raises $50M Series B", source: "TechCrunch", signal: "strong", relevance: 9, industry: "Technology", topic: "AI", date: "2024-03-16" },
-  { id: 2, title: "JPMorgan uses GenAI for trade settlement", source: "Financial Times", signal: "strong", relevance: 8, industry: "Finance", topic: "Fintech", date: "2024-03-15" },
-  { id: 3, title: "EU AI Act enforcement begins", source: "EUR-Lex", signal: "weak", relevance: 7, industry: "Legal", topic: "Regulation", date: "2024-03-14" },
-  { id: 4, title: "Synthesia raises €40M for AI video", source: "Dealroom", signal: "strong", relevance: 8, industry: "Media", topic: "AI", date: "2024-03-13" },
-  { id: 5, title: "Moderna partners with Genentech on AI drugs", source: "BiopharmGuy", signal: "strong", relevance: 8, industry: "Healthcare", topic: "HealthTech", date: "2024-03-12" },
-  { id: 6, title: "CrowdStrike launches AI threat detection", source: "VentureBeat", signal: "strong", relevance: 9, industry: "Security", topic: "Cybersecurity", date: "2024-03-11" },
-  { id: 7, title: "Massachusetts bans AI hiring tools", source: "Boston Globe", signal: "weak", relevance: 6, industry: "Legal", topic: "Regulation", date: "2024-03-10" },
-  { id: 8, title: "Bloom Energy deploys AI for microgrids", source: "GreenTech Media", signal: "weak", relevance: 7, industry: "Energy", topic: "CleanTech", date: "2024-03-09" },
-  { id: 9, title: "Boston Dynamics acquires AI robotics startup", source: "RoboHub", signal: "strong", relevance: 8, industry: "Manufacturing", topic: "Robotics", date: "2024-03-08" },
-  { id: 10, title: "Singapore launches $100M AI talent fund", source: "Straits Times", signal: "weak", relevance: 6, industry: "Government", topic: "AI", date: "2024-03-07" },
-];
 
 const MOCK_FUNDING = [
   { id: 1, company: "DeepSeek", amount: "$50M", round: "Series B", source: "Various", date: "2024-03-16" },
@@ -95,48 +80,6 @@ function groupByField(articles, field, limit = 8) {
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, limit);
-}
-
-function getSignalDistribution(articles) {
-  let strong = 0, weak = 0, unknown = 0;
-  articles.forEach(a => {
-    const s = (a.signal_type || "").toUpperCase();
-    if (s.includes("STRONG")) strong++;
-    else if (s.includes("WEAK")) weak++;
-    else unknown++;
-  });
-  const result = [];
-  if (strong > 0)  result.push({ name: "Strong",  value: strong });
-  if (weak > 0)    result.push({ name: "Weak",    value: weak });
-  if (unknown > 0) result.push({ name: "Unknown", value: unknown });
-  return result;
-}
-
-function getLast7Days(articles) {
-  const today = new Date();
-  const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    days.push({
-      dateObj: d,
-      date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      count: 0,
-    });
-  }
-  articles.forEach(a => {
-    if (!a.publishedAt) return;
-    const parsed = new Date(a.publishedAt);
-    if (isNaN(parsed)) return;
-    days.forEach(d => {
-      if (
-        parsed.getFullYear() === d.dateObj.getFullYear() &&
-        parsed.getMonth()    === d.dateObj.getMonth() &&
-        parsed.getDate()     === d.dateObj.getDate()
-      ) { d.count++; }
-    });
-  });
-  return days.map(({ date, count }) => ({ date, count }));
 }
 
 function DataTable({ articles, loading, error, searchQuery, setSearchQuery }) {
@@ -392,12 +335,6 @@ function KpiCard({ label, value, sub }) {
 
 function Charts({ articles }) {
   const [selectedTopic, setSelectedTopic] = useState("All");
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
 
   if (articles.length === 0) {
     return (
@@ -581,12 +518,6 @@ function FundingAndActors() {
   const [fundingData, setFundingData] = useState(MOCK_FUNDING);
   const [actorsData, setActorsData] = useState(MOCK_ACTORS);
   const [loading, setLoading] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
 
   useEffect(() => {
     setLoading(true);

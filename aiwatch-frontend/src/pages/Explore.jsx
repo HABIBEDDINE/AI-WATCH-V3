@@ -29,8 +29,6 @@ const B = {
   blue:      "#1a5fa8",
 };
 
-const SIGNALS = ["All", "Strong", "Weak"];
-
 function StatCard({ label, value }) {
   return (
     <div style={{
@@ -235,18 +233,6 @@ export default function Explore() {
       setError("Ingestion failed: " + err.message);
       setLoading(false);
     }
-  };
-
-  const toggleArticleSelection = (articleId) => {
-    const newSet = new Set(selectedArticles);
-    if (newSet.has(articleId)) newSet.delete(articleId);
-    else newSet.add(articleId);
-    setSelectedArticles(newSet);
-  };
-
-  const toggleAllArticles = () => {
-    if (selectedArticles.size === articles.length) setSelectedArticles(new Set());
-    else setSelectedArticles(new Set(articles.map(a => a.id)));
   };
 
   const handleGenerateReport = async () => {

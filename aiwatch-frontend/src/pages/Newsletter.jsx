@@ -393,13 +393,6 @@ function NewsletterPreview({ articles, topic, issueDate }) {
 }
 
 export default function Newsletter() {
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
-
   const [topic, setTopic] = useState("All");
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);

@@ -96,19 +96,6 @@ function SolutionCard({ solution, rank }) {
         {solution.description}
       </p>
 
-      {/* Metadata */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11, color: B.gray500, background: B.gray100, padding: "3px 10px", borderRadius: 999 }}>
-          {solution.timeline}
-        </span>
-        <span style={{ fontSize: 11, color: B.gray500, background: B.gray100, padding: "3px 10px", borderRadius: 999 }}>
-          {solution.stage}
-        </span>
-        <span style={{ fontSize: 11, color: ACCENT, background: ACCENT_BG, padding: "3px 10px", borderRadius: 999, fontWeight: 600 }}>
-          {solution.tag}
-        </span>
-      </div>
-
       {/* CTA */}
       <button
         style={{

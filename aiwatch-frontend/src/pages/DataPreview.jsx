@@ -63,6 +63,28 @@ const MOCK_ACTORS = [
   { id: 6, name: "EU Commission", type: "Government", role: "Regulation", mentions: 35 },
 ];
 
+async function fetchAllArticles(search) {
+  const pageSize = 100;
+  let page = 1;
+  let total = 0;
+  const all = [];
+
+  do {
+    const response = await getArticles({
+      page,
+      pageSize,
+      search: search || undefined,
+    });
+
+    const items = response.items || [];
+    total = response.total || 0;
+    all.push(...items);
+    page += 1;
+  } while (all.length < total);
+
+  return all;
+}
+
 function groupByField(articles, field, limit = 8) {
   const counts = {};
   articles.forEach(a => {
@@ -568,9 +590,8 @@ function FundingAndActors() {
 
   useEffect(() => {
     setLoading(true);
-    getArticles({ pageSize: 100 })
-      .then(response => {
-        const articles = response.items || [];
+    fetchAllArticles()
+      .then(articles => {
         
         // **FUNDING SECTION**: Shows AI/Tech funding announcements found in news
         // These are funding rounds mentioned in the articles we loaded
@@ -702,8 +723,8 @@ export default function DataPreview() {
     setLoading(true);
     setError(null);
     try {
-      const response = await getArticles({ pageSize: 100, search: search || undefined });
-      setArticles(response.items || []);
+      const allArticles = await fetchAllArticles(search);
+      setArticles(allArticles);
     } catch (err) {
       setError(err.message);
       setArticles([]);

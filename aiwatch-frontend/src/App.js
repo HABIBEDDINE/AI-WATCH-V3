@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { Routes, Route, Link, useLocation } from "react-router-dom";
 import { getFeed, getRadar, getHealth } from "./services/api";
-import { Compass, Lightbulb, Target, BarChart2, FileText, Mail, TrendingUp } from "lucide-react";
+import { Compass, Lightbulb, BarChart2, FileText, Mail, TrendingUp } from "lucide-react";
 import Explore from "./pages/Explore";
 import Solutions from "./pages/Solutions";
 import DataPreview from "./pages/DataPreview";
 import Reports from "./pages/Reports";
 import Newsletter from "./pages/Newsletter";
-import Matching from "./pages/Matching";
 import ArticleDetail from "./pages/ArticleDetail";
 import Trends from "./pages/Trends";
 
@@ -476,7 +475,6 @@ export default function AIWatchDXC() {
     { id:"feed",       label:"News Feed",       path:"/",             Icon: Compass,     desc:"Browse and filter live articles"    },
     { id:"trends",     label:"AI Trends",       path:"/trends",       Icon: TrendingUp,  desc:"Live AI tools & model intelligence"  },
     { id:"radar",      label:"Solutions",       path:"/solutions",    Icon: Lightbulb,   desc:"DXC product recommendations"        },
-    { id:"matching",   label:"Solutions Match", path:"/matching",     Icon: Target,    desc:"Match signals to DXC products"      },
     { id:"data",       label:"Data Table",      path:"/data-preview", Icon: BarChart2, desc:"Sort and export article data"       },
     { id:"reports",    label:"My Reports",      path:"/reports",      Icon: FileText,  desc:"Save and download PDF reports"      },
     { id:"newsletter", label:"Newsletter",      path:"/newsletter",   Icon: Mail,      desc:"Compose and send intelligence briefs"},
@@ -616,7 +614,6 @@ export default function AIWatchDXC() {
             <Route path="/data-preview" element={<DataPreview />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/newsletter" element={<Newsletter />} />
-            <Route path="/matching" element={<Matching />} />
           </Routes>
         </div>
 

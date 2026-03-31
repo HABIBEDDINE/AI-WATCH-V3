@@ -98,7 +98,11 @@ export async function getTrends(category) {
 }
 
 export async function refreshTrends() {
-  return request("/api/trends/refresh", { method: "POST" });
+  return request("/api/trends/refresh?force=true", {
+    method: "POST",
+    timeoutMs: 120000,
+    retries: 0,
+  });
 }
 
 export async function getDeepDive(trendId) {

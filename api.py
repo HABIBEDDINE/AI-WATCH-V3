@@ -372,23 +372,28 @@ def get_trends(category: str = Query(None)):
 
 
 @app.post("/api/trends/refresh")
-async def trigger_trends_refresh():
-    """Refresh trends — returns DB cache if < 6h old, else calls Perplexity + saves to DB."""
+async def trigger_trends_refresh(force: bool = Query(False)):
+    """Refresh trends. Set force=true to bypass 6h DB cache and fetch fresh data."""
     # ── 1. Check DB freshness ─────────────────────────────────────────────
-    try:
-        cutoff_6h = (datetime.utcnow() - timedelta(hours=6)).isoformat()
-        fresh = supabase.table("trends").select("*").gte("created_at", cutoff_6h).execute()
-        if fresh.data:
-            trends_from_db = []
-            for row in fresh.data:
-                t = dict(row.get("data") or {})
-                t["watchlisted"] = row.get("watchlisted", False)
-                if row.get("deepdive"):
-                    t["deep_dive"] = row["deepdive"]
-                trends_from_db.append(t)
-            return {"trends": trends_from_db, "total": len(trends_from_db), "message": "Returned from DB cache (< 6h old)"}
-    except Exception as e:
-        print(f"[DB] trends freshness check failed: {e}")
+    if not force:
+        try:
+            cutoff_6h = (datetime.utcnow() - timedelta(hours=6)).isoformat()
+            fresh = supabase.table("trends").select("*").gte("created_at", cutoff_6h).execute()
+            if fresh.data:
+                trends_from_db = []
+                for row in fresh.data:
+                    t = dict(row.get("data") or {})
+                    t["watchlisted"] = row.get("watchlisted", False)
+                    if row.get("deepdive"):
+                        t["deep_dive"] = row["deepdive"]
+                    trends_from_db.append(t)
+                return {
+                    "trends": trends_from_db,
+                    "total": len(trends_from_db),
+                    "message": "Returned from DB cache (< 6h old)",
+                }
+        except Exception as e:
+            print(f"[DB] trends freshness check failed: {e}")
 
     # ── 2. Fetch fresh trends from Perplexity + GPT ───────────────────────
     trends = await refresh_trends()
@@ -408,7 +413,12 @@ async def trigger_trends_refresh():
     except Exception as e:
         print(f"[DB] trends save failed: {e}")
 
-    return {"trends": trends, "total": len(trends), "message": f"Refreshed {len(trends)} trends"}
+    return {
+        "trends": trends,
+        "total": len(trends),
+        "message": f"Refreshed {len(trends)} trends",
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @app.post("/api/trends/{trend_id}/deepdive")

@@ -23,10 +23,18 @@ from trends_service import refresh_trends, get_cached_trends, TREND_QUERIES
 
 app = FastAPI(title="AI Watch API")
 
-# Configure CORS for React frontend
+import os
+
+# Configure CORS — allow localhost in dev and the Vercel frontend in production
+_allowed_origins = ["http://localhost:3000"]
+_frontend_url = os.getenv("FRONTEND_URL", "")
+if _frontend_url:
+    _allowed_origins.append(_frontend_url.rstrip("/"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React development server
+    allow_origins=_allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",  # allow all Vercel preview URLs
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
